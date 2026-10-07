@@ -290,8 +290,20 @@ src/pianoize/
 tests/
   test_core.py       核心流水线（含乐谱校验护栏）
   test_ops.py        DIY 剪辑（含变速时间轴、钳位、预设往返）
+  test_timeline.py   原始↔处理后 时间轴映射（播放头对齐靠它）
   test_web.py        multipart 解析 + HTTP 接口端到端
-tools/make_stress_midi.py  生成带边界的合成测试文件（本项目原创，可安全分发）
+tools/
+  make_stress_midi.py  生成带边界的合成测试文件（本项目原创，可安全分发）
+  smoke_web_api.py     GUI 接口端到端冒烟测试（需服务在跑）
+  lint_frontend.py     前端静态校验：JS 语法 + DOM id 一致性 + 零外部依赖
+```
+
+想知道界面是否接线正确、又懒得开浏览器时：
+
+```bash
+pianoize-gui --no-browser --port 8765     # 另开一个终端窗口
+python tools/smoke_web_api.py http://127.0.0.1:8765 song.mid ./out
+python tools/lint_frontend.py
 ```
 
 ## 版权与免责
