@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>pianoize · MIDI 转纯钢琴版</title>
+
+<!--
+  ============================================================================
+  本页面必须完全离线可用：
+    * 不引用任何 CDN / 外部字体 / 外部图片 / 外部 JS 库
+    * 只使用同目录下的 app.css 与 app.js（相对路径）
+  静态资源全部由 Python 后端原样发出，因此 API 一律走同源相对路径。
+  ============================================================================
+-->
+
+<!-- 仅当本页面被 file:// 直接打开（脱离后端）时，才用这个回退地址探测后端。
+     正常使用方式是让后端把本页面发出来，那时这段配置不会被使用。 -->
+<meta name="pianoize-backend" content="127.0.0.1:8765" />
+
+<!-- data: 空图标，避免浏览器自动去请求不存在的 favicon（不引入任何外部资源） -->
+<link rel="icon" href="data:," />
+
+<link rel="stylesheet" href="app.css" />
+</head>
+
+<body>
+<div class="app-shell">
+
+  <!-- ======================= 顶部 ======================= -->
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-text">
+        <span class="brand-name">pianoize</span>
+        <span class="brand-sub">MIDI → 纯钢琴版 · 可视化剪辑</span>
+      </span>
+    </div>
+
+    <div class="header-right">
+      <!-- 后端连通状态：进入页面时探测一次，点击可重新探测 -->
+      <button type="button" class="conn is-unknown" id="conn" title="点击重新探测后端">
+        <span class="conn-dot" aria-hidden="true"></span>
+        <span class="conn-text" id="conn-text">正在检测后端…</span>
+      </button>
+      <span class="conn-detail mono" id="conn-detail"></span>
+    </div>
+  </header>
+
+  <!-- ======================= 全局提示 ======================= -->
+  <div class="alert alert-error" id="alert-error" role="alert" hidden>
+    <span class="alert-icon" aria-hidden="true">!</span>
+    <span class="alert-text" id="alert-error-text"></span>
+    <button type="button" class="alert-close" id="alert-error-close" aria-label="关闭错误提示">✕</button>
+  </div>
+
+  <main class="layout">
+
+    <!-- =================== 左列：音轨 + 操作 =================== -->
+    <div class="col col-main">
+
+      <!-- ---------- 1. 音轨 ---------- -->
+      <section class="card" id="card-track">
+        <div class="card-head">
+          <h2 class="card-title"><span class="card-badge">1</span>音轨</h2>
+          <span class="card-hint">拖入 MIDI 文件即可开始</span>
+        </div>
+
+        <div class="card-body">
+
+          <!-- 拖拽 / 点击上传区 -->
+          <div class="dropzone" id="dropzone" tabindex="0" role="button"
+               aria-label="拖拽或点击选择 MIDI 文件">
+            <span class="dropzone-icon" aria-hidden="true">♪</span>
+            <span class="dropzone-title">把 MIDI 文件拖到这里</span>
+            <span class="dropzone-sub">或点击选择文件</span>
+            <span class="dropzone-formats mono">.mid&nbsp; .midi&nbsp; .kar&nbsp; .rmi</span>
+            <span class="dropzone-note">音频输入（wav / mp3）暂不支持</span>
+            <!-- 原生文件选择框，隐藏起来由上面的区域代理点击 -->
+            <input type="file" id="file-input" accept=".mid,.midi,.kar,.rmi"
+                   class="sr-only" tabindex="-1" />
+          </div>
+
+          <!-- 上传进度（只在传大文件时短暂可见） -->
+          <div class="progress" id="upload-progress" hidden>
+            <div class="progress-bar" id="upload-progress-bar"></div>
+          </div>
+
+          <!-- 音轨元信息 -->
+          <div class="empty-state" id="meta-empty">
+            还没有载入音轨。上传后会显示时长、轨道数、音符数、BPM 与拍号。
+          </div>
+
+          <div class="meta-grid" id="meta-grid" hidden>
+            <div class="meta-item">
+              <span class="meta-label">文件名</span>
+              <span class="meta-value mono" id="meta-filename">—</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">时长</span>
+              <span class="meta-value mono" id="meta-duration">—</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">轨道数</span>
+              <span class="meta-value mono" id="meta-tracks">—</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">音符数</span>
+              <span class="meta-value mono" id="meta-notes">—</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">BPM</span>
+              <span class="meta-value mono" id="meta-bpm">—</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">拍号</span>
+              <span class="meta-value mono" id="meta-timesig">—</span>
+            </div>
+          </div>
+
+          <!-- 重复轨检测结果 -->
+          <div class="dup-list" id="dup-list" hidden></div>
+
+          <!-- 波形 -->
+          <div class="wave-wrap">
+            <div class="wave-toolbar">
+              <span class="wave-legend">
+                <span class="legend-item"><i class="legend-swatch sw-wave"></i>波形</span>
+                <span class="legend-item"><i class="legend-swatch sw-sel"></i>选区</span>
+                <span class="legend-item"><i class="legend-swatch sw-head"></i>播放头</span>
+              </span>
+              <span class="wave-help">
+                顶部刻度条：单击/拖动 = 移动播放头 ·
+                波形区：拖动 = 框选区间，单击 = 移动播放头
+              </span>
+            </div>
+            <!-- 波形画布：按 devicePixelRatio 缩放绘制 -->
+            <canvas id="wave-canvas" class="wave-canvas" height="160"
+                    aria-label="MIDI 波形，可点击定位与框选区间"></canvas>
+            <div class="selection-info mono" id="selection-info">未选择区间</div>
+          </div>
+
+          <!-- 播放器 -->
+          <div class="transport">
+            <audio id="player" controls preload="metadata"></audio>
+            <p class="transport-note" id="transport-note">
+              试听音频会在点击「试听」后出现在这里。
+            </p>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ---------- 2. 剪辑操作 ---------- -->
+      <section class="card" id="card-ops">
+        <div class="card-head">
+          <h2 class="card-title"><span class="card-badge">2</span>剪辑操作</h2>
+          <span class="card-hint">操作按列表顺序依次施加，顺序有意义</span>
+        </div>
+
+        <div class="card-body">
+
+          <!-- 新建操作 -->
+          <div class="op-builder">
+            <div class="kind-tabs" id="kind-tabs" role="group" aria-label="操作类型">
+              <button type="button" class="kind-tab is-active" data-kind="trim">删除片段</button>
+              <button type="button" class="kind-tab" data-kind="duplicate">复制片段</button>
+              <button type="button" class="kind-tab" data-kind="pitch">升降音高</button>
+              <button type="button" class="kind-tab" data-kind="volume">调整音量</button>
+            </div>
+
+            <div class="kind-desc" id="kind-desc">
+              删除所选区间的音乐，后面的部分整体前移。
+            </div>
+            <!-- 实时预览：把当前表单值换算成将要发给后端的操作描述 -->
+            <div class="kind-note mono" id="op-preview"></div>
+
+            <div class="field-row">
+              <label class="field">
+                <span class="field-label">起点（秒）</span>
+                <input type="number" class="num-input mono" id="op-start"
+                       step="0.01" min="0" placeholder="0.00" inputmode="decimal" />
+              </label>
+              <label class="field">
+                <span class="field-label">终点（秒）</span>
+                <input type="number" class="num-input mono" id="op-end"
+                       step="0.01" min="0" placeholder="0.00" inputmode="decimal" />
+              </label>
+              <button type="button" class="btn btn-ghost btn-inline" id="btn-use-selection"
+                      title="把波形上框选的区间填入起点/终点">
+                用当前选区
+              </button>
+            </div>
+
+            <!-- duplicate 专属：重复次数 -->
+            <div class="kind-extra" data-for="duplicate" hidden>
+              <div class="field-row">
+                <label class="field">
+                  <span class="field-label">重复次数</span>
+                  <input type="number" class="num-input mono" id="op-repeat"
+                         step="1" min="1" value="1" inputmode="numeric" />
+                </label>
+                <div class="quick-row">
+                  <button type="button" class="quick-btn" data-target="op-repeat" data-value="1">1</button>
+                  <button type="button" class="quick-btn" data-target="op-repeat" data-value="2">2</button>
+                  <button type="button" class="quick-btn" data-target="op-repeat" data-value="3">3</button>
+                  <button type="button" class="quick-btn" data-target="op-repeat" data-value="4">4</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- pitch 专属：半音数 -->
+            <div class="kind-extra" data-for="pitch" hidden>
+              <div class="field-row">
+                <label class="field">
+                  <span class="field-label">升降半音（可正可负）</span>
+                  <input type="number" class="num-input mono" id="op-semitones"
+                         step="1" value="-12" inputmode="numeric" />
+                </label>
+                <div class="quick-row">
+                  <button type="button" class="quick-btn" data-target="op-semitones" data-value="-12">-12</button>
+                  <button type="button" class="quick-btn" data-target="op-semitones" data-value="-1">-1</button>
+                  <button type="button" class="quick-btn" data-target="op-semitones" data-value="1">+1</button>
+                  <button type="button" class="quick-btn" data-target="op-semitones" data-value="12">+12</button>
+                </div>
+              </div>
+              <div class="kind-note" id="semitone-note">±12 半音 = 一个八度</div>
+            </div>
+
+            <!-- volume 专属：分贝数 -->
+            <div class="kind-extra" data-for="volume" hidden>
+              <div class="field-row">
+                <label class="field">
+                  <span class="field-label">增减分贝（可正可负）</span>
+                  <input type="number" class="num-input mono" id="op-db"
+                         step="0.5" value="-6" inputmode="decimal" />
+                </label>
+                <div class="quick-row">
+                  <button type="button" class="quick-btn" data-target="op-db" data-value="-6">-6</button>
+                  <button type="button" class="quick-btn" data-target="op-db" data-value="-3">-3</button>
+                  <button type="button" class="quick-btn" data-target="op-db" data-value="3">+3</button>
+                  <button type="button" class="quick-btn" data-target="op-db" data-value="6">+6</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="builder-actions">
+              <button type="button" class="btn btn-primary" id="btn-add-op">添加到列表</button>
+              <span class="form-error" id="op-error"></span>
+            </div>
+          </div>
+
+          <!-- 操作列表 -->
+          <div class="op-list-head">
+            <h3 class="sub-title">操作列表</h3>
+            <span class="ops-summary" id="ops-summary">共 0 条操作</span>
+            <button type="button" class="btn btn-danger btn-small" id="btn-clear-ops">
+              全部清空
+            </button>
+          </div>
+
+          <div class="empty-state" id="op-empty">
+            列表是空的。选中区间后点「添加到列表」即可建立第一条操作。
+          </div>
+
+          <div class="op-list" id="op-list"></div>
+
+          <!-- 客户端预校验提示（与后端 validate_against_duration 同口径） -->
+          <div class="warn-box" id="op-warnings" hidden></div>
+
+        </div>
+      </section>
+
+    </div>
+
+    <!-- =================== 右列：预设 + 执行 + 结果 =================== -->
+    <div class="col col-side">
+
+      <!-- ---------- 3. 方案预设 ---------- -->
+      <section class="card">
+        <div class="card-head">
+          <h2 class="card-title"><span class="card-badge">3</span>方案预设</h2>
+          <span class="card-hint">纯前端读写 JSON</span>
+        </div>
+        <div class="card-body">
+          <label class="field">
+            <span class="field-label">方案名</span>
+            <input type="text" id="preset-name" placeholder="未命名方案" />
+          </label>
+          <label class="field">
+            <span class="field-label">备注</span>
+            <textarea id="preset-note" rows="2" placeholder="这份方案想做什么…"></textarea>
+          </label>
+          <div class="preset-actions">
+            <button type="button" class="btn btn-ghost" id="btn-export-preset">导出预设</button>
+            <button type="button" class="btn btn-ghost" id="btn-import-preset">导入预设</button>
+            <input type="file" id="preset-file" accept=".json,application/json"
+                   class="sr-only" tabindex="-1" />
+          </div>
+          <p class="card-foot">
+            导出文件名固定为 <span class="mono">pianoize-preset.json</span>；
+            导入会先校验结构，再覆盖当前操作列表。
+          </p>
+        </div>
+      </section>
+
+      <!-- ---------- 4. 执行 ---------- -->
+      <section class="card">
+        <div class="card-head">
+          <h2 class="card-title"><span class="card-badge">4</span>执行</h2>
+          <span class="card-hint">先试听，满意再完整渲染</span>
+        </div>
+        <div class="card-body">
+
+          <div class="exec-actions">
+            <button type="button" class="btn btn-ghost btn-block" id="btn-preview">
+              试听（快）
+            </button>
+            <button type="button" class="btn btn-primary btn-block" id="btn-render">
+              完整渲染（慢）
+            </button>
+          </div>
+
+          <!-- 忙碌状态 -->
+          <div class="busy" id="busy" hidden>
+            <span class="spinner" aria-hidden="true"></span>
+            <span class="busy-text" id="busy-text">处理中…</span>
+            <span class="busy-timer mono" id="busy-timer">0.0s</span>
+          </div>
+
+          <!-- 渲染选项（折叠面板） -->
+          <details class="options">
+            <summary>渲染选项</summary>
+            <div class="opt-body">
+
+              <div class="opt-group">
+                <span class="opt-label">输出格式</span>
+                <div class="check-row">
+                  <label class="check-item"><input type="checkbox" name="fmt" value="mp3" checked /><span>mp3</span></label>
+                  <label class="check-item"><input type="checkbox" name="fmt" value="flac" /><span>flac</span></label>
+                  <label class="check-item"><input type="checkbox" name="fmt" value="wav" /><span>wav</span></label>
+                  <label class="check-item"><input type="checkbox" name="fmt" value="ogg" /><span>ogg</span></label>
+                </div>
+              </div>
+
+              <div class="opt-grid">
+                <label class="field">
+                  <span class="field-label">位深</span>
+                  <select id="opt-bitdepth">
+                    <option value="16">16 bit</option>
+                    <option value="24" selected>24 bit</option>
+                  </select>
+                </label>
+
+                <label class="field">
+                  <span class="field-label">目标响度</span>
+                  <select id="opt-lufs">
+                    <option value="-9">-9 LUFS（响）</option>
+                    <option value="-14" selected>-14 LUFS（标准）</option>
+                    <option value="-16">-16 LUFS（保守）</option>
+                    <option value="-23">-23 LUFS（广播）</option>
+                  </select>
+                </label>
+
+                <label class="field">
+                  <span class="field-label">钢琴音色</span>
+                  <select id="opt-piano">
+                    <option value="piano" selected>piano（标准）</option>
+                    <option value="bright">bright（明亮）</option>
+                    <option value="rhodes">rhodes（电钢）</option>
+                    <option value="harpsichord">harpsichord（拨弦古钢琴）</option>
+                    <option value="clav">clav（击弦古钢琴）</option>
+                  </select>
+                </label>
+
+                <label class="field">
+                  <span class="field-label">重复轨处理</span>
+                  <select id="opt-dropdup">
+                    <option value="auto" selected>auto（自动去重）</option>
+                    <option value="none">none（全部保留）</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="check-row">
+                <label class="check-item"><input type="checkbox" id="opt-score" checked /><span>导出乐谱 PDF</span></label>
+                <label class="check-item"><input type="checkbox" id="opt-pdf" checked /><span>生成排版 PDF</span></label>
+              </div>
+
+              <p class="card-foot">
+                「试听」只出音频，速度快；「完整渲染」会连同音频、MIDI、乐谱一起产出，可能需要几十秒。
+              </p>
+            </div>
+          </details>
+
+        </div>
+      </section>
+
+      <!-- ---------- 5. 结果 ---------- -->
+      <section class="card">
+        <div class="card-head">
+          <h2 class="card-title"><span class="card-badge">5</span>结果</h2>
+          <span class="card-hint">产物与执行报告</span>
+        </div>
+        <div class="card-body">
+
+          <div class="empty-state" id="result-empty">
+            还没有产物。执行「试听」或「完整渲染」后会列在这里。
+          </div>
+
+          <div class="result-files" id="result-files" hidden></div>
+
+          <div class="result-score" id="result-score" hidden>
+            <button type="button" class="btn btn-ghost btn-block" id="btn-open-score">
+              打开乐谱 PDF
+            </button>
+          </div>
+
+          <!-- 执行报告：把后端返回的 report 数组渲染成表格 -->
+          <div class="report-wrap" id="report-wrap" hidden>
+            <h3 class="sub-title">执行报告</h3>
+            <div class="table-scroll">
+              <table class="report-table" id="report-table"></table>
+            </div>
+          </div>
+
+          <!-- 警告 -->
+          <div class="warn-box" id="warnings-wrap" hidden></div>
+
+          <!-- 渲染日志 -->
+          <details class="log-details" id="log-wrap" hidden>
+            <summary>渲染日志</summary>
+            <pre class="log-box mono" id="log-text"></pre>
+          </details>
+
+        </div>
+      </section>
+
+      <p class="app-foot">
+        pianoize · 本地离线运行 · 无任何外部依赖
+      </p>
+
+    </div>
+  </main>
+</div>
+
+<!-- 轻量浮层提示 -->
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="app.js" defer></script>
+</body>
+</html>

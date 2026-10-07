@@ -45,9 +45,14 @@ Issues = "https://github.com/yourname/pianoize/issues"
 [project.scripts]
 pianoize = "pianoize.runner:main"
 pianoize-batch = "pianoize.batch:main"
+pianoize-gui = "pianoize.webapp:main"
+pianoize-audio2midi = "pianoize.audio2midi:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pianoize"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/pianoize/web/static" = "pianoize/web/static"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

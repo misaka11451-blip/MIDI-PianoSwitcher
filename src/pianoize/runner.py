@@ -60,6 +60,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--lufs", type=float, default=-14.0, help="音频目标响度")
     ap.add_argument("--grid", type=float, default=0.25, help="量化网格（四分音符单位）")
     ap.add_argument("--title", default=None)
+    ap.add_argument("--edit", default=None,
+                    help="在转换前先做剪辑。可以是 ①预设 JSON 文件路径，"
+                         "或 ②内联 JSON 数组，例如 "
+                         "'[{\"kind\":\"trim\",\"start\":10,\"end\":20}]'。"
+                         "支持 trim / duplicate / pitch / volume，按顺序施加。")
+    ap.add_argument("--save-preset", default=None,
+                    help="把 --edit 的操作清单另存为预设 JSON，方便以后复用")
+    ap.add_argument("--export-edited-midi", action="store_true",
+                    help="额外输出一份「剪辑后但还没转钢琴」的 MIDI，便于核对修改是否生效")
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args(argv)
 
@@ -97,8 +106,54 @@ def main(argv: list[str] | None = None) -> int:
         ts_num, ts_den = int(num), int(den)
     log(f"  速度 {bpm:.1f} BPM   拍号 {ts_num}/{ts_den}")
 
+    # ---------- 0 剪辑（DIY 操作，可选）----------
+    # 放在最前面：用户按"原曲时间轴"给的时间点，必须在删重复轨/改音色之前生效，
+    # 否则时间轴会被前面的步骤改掉，用户输入的秒数就对不上了。
+    edited_midi_out = None
+    if a.edit:
+        log.head("【0/6】应用剪辑操作")
+        from . import ops as ops_mod
+        raw_duration = pm.get_end_time()
+        # ① 先试着当文件路径读，② 再试着当内联 JSON
+        preset = None
+        p = Path(a.edit).expanduser()
+        if p.exists() and p.is_file():
+            preset = ops_mod.Preset.from_json(p)
+            log(f"  从预设文件读入：{p.name}（{len(preset.operations)} 条操作）")
+        else:
+            try:
+                payload = json.loads(a.edit)
+            except Exception as e:
+                raise SystemExit(f"--edit 既不是存在的文件，也不是合法 JSON：{e}")
+            preset = (ops_mod.Preset.from_dict(payload) if isinstance(payload, dict)
+                      else ops_mod.Preset(operations=[ops_mod.Operation.from_dict(o)
+                                                      for o in payload]))
+            log(f"  从内联 JSON 读入：{len(preset.operations)} 条操作")
+
+        for w in ops_mod.validate_against_duration(preset.operations, raw_duration):
+            log(f"  ⚠️ {w}")
+        if a.save_preset:
+            Path(a.save_preset).expanduser().write_text(
+                preset.to_json(), encoding="utf-8")
+            log(f"  预设已另存：{a.save_preset}")
+
+        before = sum(len(i.notes) for i in pm.instruments)
+        pm, edit_report = ops_mod.apply(pm, preset.operations)
+        after = sum(len(i.notes) for i in pm.instruments)
+        log(f"  原曲时长 {hhmmss(raw_duration)} → 剪辑后 {hhmmss(pm.get_end_time())}")
+        log(f"  音符 {before} → {after}")
+        for r in edit_report:
+            stats = "  ".join(f"{k}={v}" for k, v in r.items()
+                              if k not in ("index", "kind", "describe"))
+            log(f"    {r['index'] + 1}. {r['describe']}"
+                + (f"   [{stats}]" if stats else ""))
+        if a.export_edited_midi:
+            edited_midi_out = outdir / f"{stem}_edited.mid"
+            pm.write(str(edited_midi_out))
+            log(f"  ✓ 剪辑后 MIDI（未转钢琴）  {edited_midi_out.name}")
+
     # ---------- 1 诊断 ----------
-    info = analyze(pm, bpm)
+    info = analyze(pm, 120.0)
     print_analysis(info, log)
 
     # ---------- 2 去重 + 改音色 + 静音鼓 ----------
@@ -291,7 +346,7 @@ def main(argv: list[str] | None = None) -> int:
 
     log.head("完成")
     made = []
-    for p in [midi_out, score_out, pdf_out] + audio_outputs:
+    for p in [midi_out, score_out, pdf_out, edited_midi_out] + audio_outputs:
         if p and Path(p).exists():
             made.append((Path(p).name, Path(p).stat().st_size))
     for name, size in made:
