@@ -76,6 +76,9 @@
     kindTabs: $('kind-tabs'), kindDesc: $('kind-desc'), opPreview: $('op-preview'),
     opStart: $('op-start'), opEnd: $('op-end'), opRepeat: $('op-repeat'),
     opSemitones: $('op-semitones'), opDb: $('op-db'), semitoneNote: $('semitone-note'),
+    opInsertMode: $('op-insert-mode'), opInsertAt: $('op-insert-at'),
+    opInsertAtField: $('op-insert-at-field'),
+    btnInsertUsePlayhead: $('op-insert-use-playhead'),
     btnUseSelection: $('btn-use-selection'), btnAddOp: $('btn-add-op'),
     opError: $('op-error'),
     // 操作列表
@@ -145,7 +148,7 @@
   };
 
   /** 操作字段的规范顺序，用于列表里展示“即将发给后端的 JSON” */
-  const OP_FIELDS = ['kind', 'start', 'end', 'repeat', 'semitones', 'db'];
+  const OP_FIELDS = ['kind', 'start', 'end', 'repeat', 'at', 'semitones', 'db'];
 
   const FONT_STACK = '-apple-system, "Segoe UI", "Microsoft YaHei", sans-serif';
   const MONO_STACK = 'ui-monospace, Consolas, "Cascadia Mono", monospace';
@@ -1038,6 +1041,15 @@
    * 措辞与后端 pianoize.ops.Operation.describe() 保持一致，
    * 这样列表里看到的和「执行报告」里看到的不会出现两种说法。
    */
+  /** 插入位置的人话描述（与后端 ops.Operation.insert_desc 对齐） */
+  function insertDesc(op) {
+    const at = op.at;
+    if (at === undefined || at === null || at === '') return '紧跟其后';
+    if (at === 'end') return '曲末';
+    const n = Number(at);
+    return isFinite(n) ? n.toFixed(2) + 's 处' : '紧跟其后';
+  }
+
   function describeOp(op) {
     const a = Number(op.start) || 0;
     const b = Number(op.end) || 0;
@@ -1049,8 +1061,8 @@
     }
     if (op.kind === 'duplicate') {
       const rep = Number(op.repeat) || 1;
-      const extra = rep > 1 ? ' ×' + rep : '';
-      return '复制 ' + rng + ' 再播 ' + rep + ' 次（多出 ' + (len * rep).toFixed(2) + 's）';
+      return '复制 ' + rng + ' 再播 ' + rep + ' 次（多出 ' + (len * rep).toFixed(2) +
+        's，插到' + insertDesc(op) + '）';
     }
     if (op.kind === 'pitch') {
       const s = Number(op.semitones) || 0;
@@ -1109,6 +1121,17 @@
       if (!isFinite(r)) throw new Error('重复次数必须是数字');
       if (r < 1) throw new Error('重复次数至少为 1');
       op.repeat = Math.max(1, Math.round(r));
+
+      // 插入位置：默认（after）不写 at 字段，保持与后端一致
+      const mode = els.opInsertMode ? els.opInsertMode.value : 'after';
+      if (mode === 'end') {
+        op.at = 'end';
+      } else if (mode === 'custom') {
+        const at = Number(els.opInsertAt ? els.opInsertAt.value : '');
+        if (!isFinite(at)) throw new Error('插入时间必须是数字');
+        if (at < 0) throw new Error('插入时间不能是负数');
+        op.at = round3(at);
+      }
     }
     if (kind === 'pitch') {
       const s = Number(els.opSemitones.value);
@@ -1158,7 +1181,14 @@
       box.hidden = box.dataset.for !== kind;
     });
     els.opError.textContent = '';
+    syncInsertAtVisibility();
     updateOpPreview();
+  }
+
+  /** 「指定时间点」那个输入框只在选中该模式时显示 */
+  function syncInsertAtVisibility() {
+    if (!els.opInsertMode || !els.opInsertAtField) return;
+    els.opInsertAtField.hidden = els.opInsertMode.value !== 'custom';
   }
 
   /** 估算所有操作对总时长的影响（与后端 ops.total_shift_seconds 同口径） */
@@ -1309,6 +1339,22 @@
     });
 
     // 表单变化时刷新「将添加 → …」预览
+    if (els.opInsertMode) {
+      els.opInsertMode.addEventListener('change', function () {
+        syncInsertAtVisibility();
+        updateOpPreview();
+      });
+    }
+    if (els.opInsertAt) {
+      els.opInsertAt.addEventListener('input', updateOpPreview);
+    }
+    if (els.btnInsertUsePlayhead) {
+      els.btnInsertUsePlayhead.addEventListener('click', function () {
+        const t = state.playhead !== null ? state.playhead : 0;
+        if (els.opInsertAt) els.opInsertAt.value = Number(t).toFixed(2);
+        updateOpPreview();
+      });
+    }
     [els.opStart, els.opEnd, els.opRepeat, els.opDb].forEach(function (input) {
       input.addEventListener('input', function () {
         els.opError.textContent = '';
@@ -1604,13 +1650,15 @@
       const mp3 = files.filter(function (f) {
         return /\.mp3$/i.test(String(f && f.name));
       })[0];
+      // 时间轴映射也要更新 —— 否则播放头会拿上一次试听的旧映射来对齐
+      state.segments = Array.isArray(data.segments) ? data.segments : null;
       if (mp3 && mp3.url) {
         els.player.src = apiUrl(mp3.url);
         state.audioDuration = Number(data.duration) || 0;
         state.playhead = 0;
         try { els.player.load(); } catch (_) {}
         setTransportInfo('已在播放器中载入渲染结果 · 时长 ' + formatTime(data.duration) +
-          '（播放头已按剪辑结果精确对齐）');
+          (state.segments ? '（播放头已按剪辑结果精确对齐）' : ''));
       }
       drawWave();
       showToast('渲染完成，共 ' + files.length + ' 个文件');

@@ -30,6 +30,7 @@
 """
 from __future__ import annotations
 
+import io
 import json
 import mimetypes
 import re
@@ -544,7 +545,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._error(400, "项目源文件缺失，请重新上传")
 
         pm = pretty_midi.PrettyMIDI(str(src))
-        warnings = ops_mod.validate_against_duration(operations, pm.get_end_time())
+        duration_in = pm.get_end_time()
+        warnings = ops_mod.validate_against_duration(operations, duration_in)
+        # 与 preview 一致：把时间轴映射也给出去，前端播放头才能精确对齐
+        segments = ops_mod.timeline_map(operations, duration_in)
 
         with _lock_for(pid):
             edited = d / "edited.mid"
@@ -553,6 +557,14 @@ class Handler(BaseHTTPRequestHandler):
 
             outdir = d / "out"
             outdir.mkdir(exist_ok=True)
+            # 清掉上一轮的产物，免得新旧文件混在结果列表里
+            for old in outdir.iterdir():
+                if old.is_file():
+                    try:
+                        old.unlink()
+                    except OSError:
+                        pass
+
             argv = ["--src", str(edited), "--outdir", str(outdir),
                     "--name", "result",
                     "--audio-format", ",".join(fmts),
@@ -567,7 +579,20 @@ class Handler(BaseHTTPRequestHandler):
                 argv.append("--no-score")
             if want_pdf:
                 argv.append("--pdf")
-            run_pipeline(argv)
+
+            # 捕获流水线的输出当作「执行日志」回给前端。
+            # 渲染要几十秒，这段时间用户只能盯着转圈；有了日志他至少能看到
+            # 工具在做什么、做到哪一步了。
+            buf = io.StringIO()
+            old_stdout = sys.stdout
+            try:
+                sys.stdout = buf
+                run_pipeline(argv)
+            finally:
+                sys.stdout = old_stdout
+            log_text = buf.getvalue()
+            if len(log_text) > 200_000:
+                log_text = log_text[:100_000] + "\n…（日志过长已截断）…\n" + log_text[-100_000:]
 
             files = []
             for f in sorted(outdir.iterdir()):
@@ -598,7 +623,10 @@ class Handler(BaseHTTPRequestHandler):
             "files": files,
             "score_url": (f"/api/files/{pid}/out/{score.name}" if score else None),
             "report": report,
+            "segments": segments,
+            "duration_in": round(duration_in, 3),
             "warnings": warnings,
+            "log": log_text,
             **final,
         })
 

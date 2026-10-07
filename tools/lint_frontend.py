@@ -110,5 +110,36 @@ print(f"  {'✓' if not inline_script else '（注意）'} 无内联 <script>（
 local_refs = re.findall(r'(?:src|href)\s*=\s*["\']([^"\']+)["\']', html)
 print(f"  本地引用: {local_refs}")
 
+# ---------- 6) [hidden] 兜底规则 + display 覆盖检查 ----------
+# 这个坑真实发生过：.busy / .result-files 等写了 display:flex，
+# 作者样式盖掉了浏览器对 [hidden] 的默认 display:none，
+# 于是 JS 里 hidden=true 设了也没用 —— 表现就是"渲染完了还在转圈、
+# 结果区永远不出现"。所以这里做双重检查，防止它被误删。
+print("\n【6】hidden 属性是否真的生效")
+has_guard = bool(re.search(r"\[hidden\][^{]*\{[^}]*display\s*:\s*none", css))
+print(f"  {'✓' if has_guard else '✗'} 有 [hidden] {{ display: none }} 兜底规则"
+      + ("" if has_guard else "  ← 缺了它，任何 display 规则都会盖掉 hidden"))
+
+hidden_ids = re.findall(r'id="([^"]+)"[^>]*\shidden(?:\s|>)', html)
+overridden = []
+for eid in hidden_ids:
+    for m in re.finditer(r"([^{}]+)\{([^}]*)\}", css):
+        sel = " ".join(m.group(1).split())
+        if eid not in sel or "[hidden]" in sel:
+            continue
+        d = re.search(r"display\s*:\s*([a-zA-Z\-]+)", m.group(2))
+        if d and d.group(1) != "none":
+            overridden.append((eid, sel[-40:], d.group(1)))
+if overridden and not has_guard:
+    print(f"  ✗ {len(overridden)} 个元素会被 display 规则盖掉 hidden，且没有兜底：")
+    for eid, sel, d in overridden:
+        print(f"      #{eid}  {sel} → display:{d}")
+elif overridden:
+    print(f"  ✓ {len(overridden)} 个元素设了 display，但兜底规则会压住它们：")
+    for eid, sel, d in overridden:
+        print(f"      #{eid} → display:{d}")
+else:
+    print("  ✓ 没有元素存在被覆盖的风险")
+
 print()
 print("=" * 70)

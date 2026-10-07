@@ -215,7 +215,13 @@ def _safe_midi_text(s: str, limit: int = 60) -> str:
 
 def make_piano(pm: pretty_midi.PrettyMIDI, info: dict, drop: set[int],
                program: int, mute_drums: bool, beat_sec: float) -> dict:
-    """就地改：音色统一、删重复轨、静音鼓；返回统计"""
+    """就地改：音色统一、删重复轨、静音鼓、归零音色库选择。
+
+    除了设 program，还要把 **Bank Select（CC0 / CC32）归零**。
+    GM 的音色号只在 Bank 0 里是"钢琴"；源文件一旦带着非零 Bank，
+    同一个 program 0 在合成器眼里可能是完全不同的乐器组 ——
+    这是"说好的纯钢琴却听到别的乐器"的一种真实来源。
+    """
     stat = Counter()
     for i, ins in enumerate(pm.instruments):
         ins.name = _safe_midi_text(ins.name) or f"Track {i + 1}"
@@ -236,6 +242,12 @@ def make_piano(pm: pretty_midi.PrettyMIDI, info: dict, drop: set[int],
             stat["改音色"] += 1
         ins.program = program
         ins.is_drum = False
+
+        # 音色库选择归零（保留事件本身，只把值改成 0 —— 0 就是默认音色库）
+        for cc in ins.control_changes:
+            if cc.number in (0, 32) and cc.value != 0:
+                cc.value = 0
+                stat["归零音色库"] += 1
     # 清空还不够：pretty_midi 会为每个 instrument 写一条轨并带上 program_change，
     # 被删/被静音的轨会留下一条"空轨 + 原音色号"。直接从列表里摘掉才干净。
     pm.instruments = [ins for ins in pm.instruments if ins.notes]

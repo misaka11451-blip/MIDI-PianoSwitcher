@@ -387,6 +387,48 @@ def test_safe_midi_text_strips_non_latin1():
     assert len(core._safe_midi_text("x" * 200)) == 60
 
 
+def test_bank_select_is_zeroed(tmp_path):
+    """Bank Select（CC0/CC32）必须归零。
+
+    为什么：GM 的音色号只在 Bank 0 里是"钢琴"。源文件一旦带着非零 Bank，
+    同一个 program 0 在合成器眼里可能是完全不同的乐器组 —— 这是
+    "说好的纯钢琴却听到别的乐器"的一种真实来源。所以除了设 program，
+    还要把音色库选择压回 0。
+    """
+    tracks = [("Melody", 0, 0, scale_notes(30))]
+    p = make_midi(tmp_path / "bank.mid", tracks)
+
+    pm = pretty_midi.PrettyMIDI(str(p))
+    ins = pm.instruments[0]
+    ins.control_changes.append(pretty_midi.ControlChange(0, 8, 0.0))    # Bank MSB
+    ins.control_changes.append(pretty_midi.ControlChange(32, 3, 0.0))   # Bank LSB
+    ins.control_changes.append(pretty_midi.ControlChange(7, 100, 0.0))  # 音量（不该动）
+
+    info = core.analyze(pm, lo=120.0)
+    stat = core.make_piano(pm, info, drop=set(), program=0, mute_drums=True,
+                           beat_sec=0.5)
+    assert stat.get("归零音色库") == 2, stat
+
+    banks = {c.number: c.value for c in pm.instruments[0].control_changes
+             if c.number in (0, 32)}
+    assert banks == {0: 0, 32: 0}, banks
+    # 其它控制器不受影响
+    vol = [c.value for c in pm.instruments[0].control_changes if c.number == 7]
+    assert vol == [100], vol
+
+
+def test_bank_select_zero_is_not_counted(tmp_path):
+    """本来就是 0 的 Bank Select 不该算作"归零"过。"""
+    p = make_midi(tmp_path / "bank0.mid", [("M", 0, 0, scale_notes(30))])
+    pm = pretty_midi.PrettyMIDI(str(p))
+    pm.instruments[0].control_changes.append(
+        pretty_midi.ControlChange(0, 0, 0.0))
+    info = core.analyze(pm, lo=120.0)
+    stat = core.make_piano(pm, info, drop=set(), program=0, mute_drums=True,
+                           beat_sec=0.5)
+    assert stat.get("归零音色库", 0) == 0, stat
+
+
 def test_chinese_track_name_survives_write(tmp_path):
     """带中文轨名的 MIDI，经 make_piano 之后必须能写出去（不抛 UnicodeEncodeError）。
 

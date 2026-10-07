@@ -192,7 +192,7 @@
               </button>
             </div>
 
-            <!-- duplicate 专属：重复次数 -->
+            <!-- duplicate 专属：重复次数 + 插入位置 -->
             <div class="kind-extra" data-for="duplicate" hidden>
               <div class="field-row">
                 <label class="field">
@@ -206,6 +206,28 @@
                   <button type="button" class="quick-btn" data-target="op-repeat" data-value="3">3</button>
                   <button type="button" class="quick-btn" data-target="op-repeat" data-value="4">4</button>
                 </div>
+              </div>
+              <div class="field-row">
+                <label class="field">
+                  <span class="field-label">插到哪里</span>
+                  <select class="num-input" id="op-insert-mode">
+                    <option value="after">紧跟该段之后</option>
+                    <option value="end">整首曲子的末尾</option>
+                    <option value="custom">指定时间点</option>
+                  </select>
+                </label>
+                <label class="field" id="op-insert-at-field" hidden>
+                  <span class="field-label">插入时间（秒）</span>
+                  <input type="number" class="num-input mono" id="op-insert-at"
+                         step="0.1" min="0" value="0" inputmode="decimal" />
+                </label>
+                <button type="button" class="quick-btn" id="op-insert-use-playhead"
+                        title="用当前播放头所在的时间点">
+                  用播放头
+                </button>
+              </div>
+              <div class="kind-note">
+                副本会插到指定位置，并把该位置之后的内容整体后移，不会盖掉原有音乐。
               </div>
             </div>
 

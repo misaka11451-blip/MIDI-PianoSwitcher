@@ -59,6 +59,11 @@ class Operation:
     """一个剪辑操作。
 
     start/end 是**秒**，针对当前（已被前序操作改过的）时间轴。
+
+    ``at`` 只用于 duplicate：复制的片段**插到哪里**。
+      * ``None``（默认）—— 紧跟在那一段之后（原来的行为）
+      * ``"end"``      —— 插到整首曲子末尾（想多加一个尾段时用）
+      * 数字（秒）      —— 插到当前时间轴的该位置
     """
 
     kind: Kind
@@ -67,6 +72,7 @@ class Operation:
     semitones: int = 0          # pitch 用
     db: float = 0.0             # volume 用
     repeat: int = 1             # duplicate 用：重复几次
+    at: float | str | None = None   # duplicate 用：插入位置
     label: str = ""             # 用户备注，不参与计算
 
     def __post_init__(self):
@@ -74,20 +80,48 @@ class Operation:
             raise ValueError(f"未知操作类型：{self.kind}")
         if self.end < self.start:
             raise ValueError(f"end({self.end}) 不能小于 start({self.start})")
-        if self.kind in ("trim", "duplicate", "pitch", "volume"):
-            if self.end - self.start <= EPS:
-                raise ValueError(f"{self.kind} 需要一段非零长度的区间")
-        if self.kind == "repeat" or self.repeat < 1:
+        if self.end - self.start <= EPS:
+            raise ValueError(f"{self.kind} 需要一段非零长度的区间")
+        if not isinstance(self.repeat, int) or self.repeat < 1:
             raise ValueError("repeat 至少为 1")
+        if self.at is not None:
+            if self.kind != "duplicate":
+                raise ValueError("只有「复制片段」才需要指定插入位置（at）")
+            if isinstance(self.at, str):
+                s = self.at.strip()
+                if s == "end":
+                    self.at = "end"
+                else:
+                    # 前端表单读出来就是字符串，这里统一转成数字
+                    try:
+                        self.at = float(s)
+                    except ValueError:
+                        raise ValueError(
+                            f'at 只接受 "end" 或一个秒数，收到 {self.at!r}')
+            if self.at != "end":
+                self.at = float(self.at)
+                if self.at < 0:
+                    raise ValueError("插入位置不能是负数")
+
+    def insert_desc(self) -> str:
+        """插入位置的人话描述（给 UI 用）"""
+        if self.at is None:
+            return "紧跟其后"
+        if isinstance(self.at, str) and self.at == "end":
+            return "曲末"
+        return f"{float(self.at):.2f}s 处"
 
     # ---- 序列化 ----
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
-        return {k: v for k, v in d.items() if not (k == "label" and not v)}
+        out = {k: v for k, v in d.items() if not (k == "label" and not v)}
+        if out.get("at") is None:
+            out.pop("at", None)
+        return out
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Operation":
-        allowed = {f for f in cls.__dataclass_fields__}
+        allowed = set(cls.__dataclass_fields__)
         unknown = set(d) - allowed
         if unknown:
             raise ValueError(f"操作里有无法识别的字段：{sorted(unknown)}")
@@ -100,8 +134,8 @@ class Operation:
         if self.kind == "trim":
             return f"删除 {rng}（{b - a:.2f}s）"
         if self.kind == "duplicate":
-            extra = f" ×{self.repeat}" if self.repeat > 1 else ""
-            return f"复制 {rng} 再播 {self.repeat} 次（多出 {(b - a) * self.repeat:.2f}s）"
+            return (f"复制 {rng} 再播 {self.repeat} 次"
+                    f"（多出 {(b - a) * self.repeat:.2f}s，插到{self.insert_desc()}）")
         if self.kind == "pitch":
             sign = "+" if self.semitones >= 0 else ""
             octs = self.semitones / 12
@@ -273,39 +307,91 @@ def _op_trim(pm: pretty_midi.PrettyMIDI, tmap: TempoMap, op: Operation) -> dict:
 
 
 def _op_duplicate(pm: pretty_midi.PrettyMIDI, tmap: TempoMap, op: Operation) -> dict:
-    """把 [start,end) 的内容再演奏 repeat 次，插在该段结束后。
+    """把 [start,end) 的内容再演奏 repeat 次，插到 op.at 指定的位置。
 
-    实现：后面所有音符整体后移 (长度 × repeat)，然后在腾出的空位里
-    按原来的偏移量复制 repeat 份。
+    ## 算法
+
+    记 ``a,b`` = 源区间、``L = b-a``、``shift = L×repeat``、``ins`` = 插入点。
+
+    关键洞察：**源区间的内容就是模板本身**。所以只要把源区间的音符先
+    从乐器里"摘出来"（拿在手上），它们就再也不会被后面的腾挪误伤；
+    腾挪完再决定把它们放回哪里即可。
+
+    1. 摘出源区间 ``[a,b)`` 的音符（此时它不在任何乐器列表里，绝对安全）。
+       它的时间信息同时就是副本的模板。
+    2. 把 ``ins`` 之后的现场内容整体后移 shift，腾出 ``[ins, ins+shift)``。
+    3. 在 ``[ins, ins+shift)`` 里放下 repeat 份副本。
+    4. 把摘出来的源区间放回：
+         * ``ins >= b``（插在源区间之后）→ 源区间留在原位，即 ``[a, b)``
+         * ``ins < b``（插入点在源区间之前或之内）→ 源区间让位，挪到
+           ``[ins+shift, ins+shift+L)``
+
+    每一步都只动"确定该动"的对象，不依赖后续步骤的副作用。
+
+    踩过的坑（都真实发生过，留在这里免得再犯）：
+      * "先复制再统一后移" → 副本被当成现场内容一起推走，一份不剩。
+      * "把源区间搬到临时区、再搬回来" → 搬回的位置与副本重合，互相抵消。
+      * 对 ``>= ins`` 的内容统一 +shift → 连空隙里刚放好的副本也一起推走。
     """
-    length = op.end - op.start
+    a, b = float(op.start), float(op.end)
+    length = b - a
     shift = length * op.repeat
-    # 先把后面的挪开
-    _move_notes_after(pm, tmap, op.end, shift)
 
-    copied = 0
-    for ins in pm.instruments:
-        src = [n for n in list(ins.notes)
-               if op.start - EPS <= n.start < op.end - EPS]
-        for r in range(1, op.repeat + 1):
-            off = op.start + length * r
-            for n in src:
-                ins.notes.append(pretty_midi.Note(
-                    velocity=n.velocity,
-                    pitch=n.pitch,
-                    start=off + (n.start - op.start),
-                    end=off + (n.end - op.start),
-                ))
-                copied += 1
-        # 控制器也跟着复制，否则复制段的踏板/音量会丢
-        ccs = [c for c in list(ins.control_changes)
-               if op.start - EPS <= c.time < op.end - EPS]
-        for r in range(1, op.repeat + 1):
-            off = op.start + length * r
-            for c in ccs:
-                ins.control_changes.append(
-                    pretty_midi.ControlChange(c.number, c.value, off + (c.time - op.start)))
-    return {"复制音符": copied, "时间轴延长": round(shift, 3)}
+    # ---- 1) 插入点 ----
+    if op.at is None:
+        ins = b
+    elif isinstance(op.at, str) and op.at == "end":
+        # 曲末 = 所有音符的**最大结束时刻** + 极小量。
+        #
+        # 为什么必须用 end 而不是最后一个音的 start：用 start 的话，
+        # "把 ins 之后的内容后移" 会把末音自己也推走，导致原曲被改动
+        # （实测：末音从 9.5 被推到 11.5）。用 end 则原曲一个音都不动。
+        ends = [n.end for i in pm.instruments for n in i.notes]
+        ins = (float(max(ends)) + 1e-6) if ends else 0.0
+    else:
+        ins = float(op.at)
+
+    # ---- 2) 摘出源区间（拿在手上，绝对安全）----
+    source: list[tuple[int, pretty_midi.Note]] = []
+    for ti, instrument in enumerate(pm.instruments):
+        keep = []
+        for n in instrument.notes:
+            if a - EPS <= n.start < b - EPS:
+                source.append((ti, n))
+            else:
+                keep.append(n)
+        instrument.notes = keep
+
+    # ---- 3) 腾出 [ins, ins+shift)：现场内容里的 ins 之后整体后移 ----
+    for instrument in pm.instruments:
+        for n in instrument.notes:
+            if n.start >= ins - EPS:
+                n.start += shift
+                n.end += shift
+
+    # ---- 4) 放进 repeat 份副本 ----
+    for r in range(1, op.repeat + 1):
+        dest = ins + (r - 1) * length
+        for ti, n in source:
+            pm.instruments[ti].notes.append(pretty_midi.Note(
+                velocity=n.velocity, pitch=n.pitch,
+                start=dest + (n.start - a), end=dest + (n.end - a)))
+
+    # ---- 5) 源区间放回 ----
+    if ins < b - EPS:
+        # 插入点在源区间之前或之内：源区间让位，挪到副本之后
+        delta = (ins + shift) - a
+    else:
+        # 插入点在源区间之后：源区间留在原位
+        delta = 0.0
+    for _ti, n in source:
+        n.start += delta
+        n.end += delta
+        pm.instruments[_ti].notes.append(n)
+
+    return {"复制音符": len(source) * op.repeat,
+            "时间轴延长": round(shift, 3),
+            "插入位置": op.insert_desc()}
 
 
 def _op_pitch(pm: pretty_midi.PrettyMIDI, tmap: TempoMap, op: Operation) -> dict:
@@ -447,7 +533,7 @@ def timeline_map(operations: Iterable[Operation], duration: float,
     pieces: list[list[float]] = [[0.0, float(duration), 0.0]]
 
     def split_at(a: float, b: float) -> None:
-        """把片段表在所有 a、b 处切开，保证边界对齐到片段边界。"""
+        """把片段表在所有 a、b 处切开，保证边界对齐到片段边界（按**源**时间）。"""
         nonlocal pieces
         for cut in (a, b):
             if cut <= EPS:
@@ -460,6 +546,22 @@ def timeline_map(operations: Iterable[Operation], duration: float,
                 else:
                     out.append([s0, s1, o0])
             pieces = out
+
+    def split_out_at(cut: float) -> None:
+        """按**输出**时间切开片段表（插入点可能不在源区间边界上）。"""
+        nonlocal pieces
+        if cut <= EPS:
+            return
+        out: list[list[float]] = []
+        for s0, s1, o0 in pieces:
+            o1 = o0 + (s1 - s0)
+            if o0 + EPS < cut < o1 - EPS:
+                mid_src = s0 + (cut - o0)
+                out.append([s0, mid_src, o0])
+                out.append([mid_src, s1, cut])
+            else:
+                out.append([s0, s1, o0])
+        pieces = out
 
     for op in ops:
         a, b = float(op.start), float(op.end)
@@ -474,20 +576,41 @@ def timeline_map(operations: Iterable[Operation], duration: float,
                 shift = -length if s0 >= b - EPS else 0.0
                 kept.append([s0, s1, o0 + shift])
             pieces = kept
-        else:  # duplicate
+        else:  # duplicate：把 [a,b) 再播 repeat 次，插到 op.at 指定的位置
+            # 插入点在**当前**输出时间轴上的位置（与 _op_duplicate 同口径）
+            if op.at is None:
+                ins = b
+            elif isinstance(op.at, str) and op.at == "end":
+                # 曲末 = 传入的 duration（调用方传的是"所有音符的最大结束时刻"），
+                # 与 _op_duplicate 用 end 当插入点保持一致。
+                ins = max(float(duration),
+                          max((pc[2] + (pc[1] - pc[0]) for pc in pieces), default=0.0))
+            else:
+                ins = float(op.at)
             shift = length * op.repeat
-            # 1) b 之后的内容整体后移，腾出 repeat 份的空间
-            for pc in pieces:
-                if pc[0] >= b - EPS:
-                    pc[2] += shift
-            # 2) 在腾出的空位里追加副本：第 r 份占输出 [b+(r-1)L, b+rL)
-            srcs = [[s0, s1, o0] for s0, s1, o0 in pieces
-                    if s0 >= a - EPS and s1 <= b + EPS]
-            for r in range(1, op.repeat + 1):
-                base = b + (r - 1) * length
-                for s0, s1, _o0 in srcs:
+            # 切开插入点，保证之后能精确按输出位置取片段
+            split_out_at(ins)
+
+            # 取**源区间**的片段作为副本模板。
+            # 为什么不用"副本落点区间"里的片段：连续两次复制同一段时，
+            # 第二次的落点区间可能已经被第一次的插入搅过，取到的不是原件。
+            template = [list(pc) for pc in pieces
+                        if pc[0] >= a - EPS and pc[1] <= b + EPS and pc[1] > pc[0]]
+
+            def insert_piece(s0: float, s1: float, at_out: float) -> None:
+                """在输出时间 at_out 处插入副本：先把它之后的内容整体后移，
+                再放进副本。**必须是"插入"语义**。"""
+                for pc in pieces:
+                    if pc[2] >= at_out - EPS:
+                        pc[2] += shift
+                for r in range(1, op.repeat + 1):
+                    base = at_out + (r - 1) * length
                     pieces.append([s0, s1, base + (s0 - a)])
 
+            # 踩过的坑：先把副本 append 进列表、再统一给"插入点之后"的内容
+            # 减 shift，会把刚加的副本自己也减掉，结果一个副本都不剩。
+            for s0, s1, _o0 in template:
+                insert_piece(s0, s1, ins)
         if len(pieces) > max_segments:
             return []
 
