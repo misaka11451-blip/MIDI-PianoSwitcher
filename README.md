@@ -127,7 +127,7 @@ pianoize --src song.mid --outdir out --edit my_preset.json --save-preset copy.js
 ## 安装
 
 ```bash
-git clone https://github.com/yourname/pianoize
+git clone https://github.com/misaka11451-blip/pianoize
 cd pianoize
 pip install -e .
 ```
