@@ -18,8 +18,8 @@
 
 用法：
 
-    python -m pianoize.audio2midi --src song.mp3 --out song.mid
-    python -m pianoize.audio2midi --src song.mp3 --out song.mid --thresh 0.15 --min-len 0.08
+    python -m midi_pianoswitcher.audio2midi --src song.mp3 --out song.mid
+    python -m midi_pianoswitcher.audio2midi --src song.mp3 --out song.mid --thresh 0.15 --min-len 0.08
 """
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ def _ffmpeg_decode(path: Path, sr: int) -> tuple[np.ndarray, int]:
             f"读不了 {path.name}：当前解码器不支持这个格式，且系统里找不到 ffmpeg。\n"
             f"  解决：装一个 ffmpeg（winget install ffmpeg / brew install ffmpeg），\n"
             f"       或者先把文件转成 wav/mp3 再来。")
-    with tempfile.TemporaryDirectory(prefix="pianoize_a2m_") as td:
+    with tempfile.TemporaryDirectory(prefix="mps_a2m_") as td:
         wav = Path(td) / "decoded.wav"
         r = subprocess.run(
             [ff, "-y", "-v", "error", "-i", str(path),

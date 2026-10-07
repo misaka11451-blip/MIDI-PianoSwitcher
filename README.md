@@ -1,14 +1,25 @@
-# pianoize
+# MIDI-PianoSwitcher
 
 把任意 MIDI 转成**纯钢琴版** —— 一条命令同时产出**音频、MIDI、可打印的钢琴谱**，
 还带一个**可视化剪辑界面**。
 
 ```bash
-pianoize-gui                                    # 打开图形界面（推荐新手）
-pianoize --src song.mid --outdir out --pdf      # 命令行
+mps-gui                                       # 打开图形界面（推荐新手）
+mps --src song.mid --outdir out --pdf         # 命令行
 ```
 
-**图形界面**（`pianoize-gui`）：上传 MIDI → 看波形 → 框选区间 → 加剪辑操作 →
+> **命令有两种写法，完全等价：**
+>
+> | 简写 | 完整 | 用途 |
+> |---|---|---|
+> | `mps` | `midi-pianoswitcher` | 单文件转换 |
+> | `mps-gui` | `midi-pianoswitcher-gui` | 图形界面 |
+> | `mps-batch` | `midi-pianoswitcher-batch` | 批量转换 |
+> | `mps-audio2midi` | `midi-pianoswitcher-audio2midi` | 音频转 MIDI |
+>
+> 本文档示例统一用简写；把 `mps` 换成 `midi-pianoswitcher` 效果完全一样。
+
+**图形界面**（`mps-gui`）：上传 MIDI → 看波形 → 框选区间 → 加剪辑操作 →
 试听 → 完整渲染 → 下载。只监听本机，文件不出这台电脑。
 
 **DIY 剪辑**（界面里点，命令行也能用）：
@@ -34,8 +45,8 @@ pianoize --src song.mid --outdir out --pdf      # 命令行
 操作按列表顺序依次施加（顺序有意义），可以存成 **JSON 预设**随时复用：
 
 ```bash
-pianoize --src song.mid --outdir out --edit my_preset.json --pdf
-pianoize --src song.mid --outdir out --edit my_preset.json --save-preset copy.json
+mps --src song.mid --outdir out --edit my_preset.json --pdf
+mps --src song.mid --outdir out --edit my_preset.json --save-preset copy.json
 ```
 
 ```
@@ -127,8 +138,8 @@ pianoize --src song.mid --outdir out --edit my_preset.json --save-preset copy.js
 ## 安装
 
 ```bash
-git clone https://github.com/misaka11451-blip/pianoize
-cd pianoize
+git clone https://github.com/misaka11451-blip/MIDI-PianoSwitcher
+cd MIDI-PianoSwitcher
 pip install -e .
 ```
 
@@ -139,10 +150,10 @@ pip install -e .
 
 | 命令 | 用途 |
 |---|---|
-| `pianoize-gui` | 图形界面（上传 → 剪辑 → 试听 → 渲染） |
-| `pianoize` | 单文件转纯钢琴版 |
-| `pianoize-batch` | 批量转换 |
-| `pianoize-audio2midi` | 音频转 MIDI（准确度有限，见下文） |
+| `midi-pianoswitcher-gui` | 图形界面（上传 → 剪辑 → 试听 → 渲染） |
+| `mps` | 单文件转纯钢琴版 |
+| `midi-pianoswitcher-batch` | 批量转换 |
+| `midi-pianoswitcher-audio2midi` | 音频转 MIDI（准确度有限，见下文） |
 
 **可选的外部程序**（不装也能用，只是少功能）：
 
@@ -163,7 +174,7 @@ brew install --cask musescore && brew install ffmpeg
 ### 图形界面
 
 ```bash
-pianoize-gui
+mps-gui
 ```
 
 会启动一个本地服务并自动打开浏览器（默认 `http://127.0.0.1:8765`）。
@@ -173,36 +184,36 @@ pianoize-gui
 常用参数：
 
 ```bash
-pianoize-gui --port 9000        # 换端口
-pianoize-gui --no-browser       # 不自动开浏览器
-pianoize-gui --host 0.0.0.0     # 让同局域网设备也能访问（默认只本机）
+mps-gui --port 9000        # 换端口
+mps-gui --no-browser       # 不自动开浏览器
+mps-gui --host 0.0.0.0     # 让同局域网设备也能访问（默认只本机）
 ```
 
 ### 命令行
 
 ```bash
 # 最简
-pianoize --src song.mid --outdir out
+mps --src song.mid --outdir out
 
 # 要 PDF 谱
-pianoize --src song.mid --outdir out --pdf
+mps --src song.mid --outdir out --pdf
 
 # 无损 24bit FLAC
-pianoize --src song.mid --outdir out --audio-format flac --bitdepth 24
+mps --src song.mid --outdir out --audio-format flac --bitdepth 24
 
 # 四种格式一起出
-pianoize --src song.mid --outdir out --audio-format wav,flac,mp3,ogg
+mps --src song.mid --outdir out --audio-format wav,flac,mp3,ogg
 
 # 只要 MIDI 和谱，不渲染（快很多）
-pianoize --src song.mid --outdir out --no-audio --pdf
+mps --src song.mid --outdir out --no-audio --pdf
 
 # 带剪辑：删 10–20 秒，再把开头 8 秒重复两次
-pianoize --src song.mid --outdir out --edit '[
+mps --src song.mid --outdir out --edit '[
   {"kind":"trim","start":10,"end":20},
   {"kind":"duplicate","start":0,"end":8,"repeat":2}]'
 
 # 批量（串行，避免几百 MB 的临时文件叠加）
-pianoize-batch --indir ./midis --outdir out --recursive --pdf
+mps-batch --indir ./midis --outdir out --recursive --pdf
 ```
 
 > Windows 上用 PowerShell 传内联 JSON 容易被引号规则吃掉，**建议存成
@@ -228,7 +239,7 @@ pianoize-batch --indir ./midis --outdir out --recursive --pdf
 ## 音频 → MIDI（可选，且请先读这段）
 
 ```bash
-python -m pianoize.audio2midi --src song.mp3 --out song.mid
+python -m midi_pianoswitcher.audio2midi --src song.mp3 --out song.mid
 ```
 
 **音频转 MIDI 是信息有损的**：波形里没有"乐器、时值、力度、拍号"这些信息，全靠推测。
@@ -246,7 +257,7 @@ python -m pianoize.audio2midi --src song.mp3 --out song.mid
 
 ```bash
 # 自己量化一下准确度：拿已知真值的 MIDI 渲染成音频，再转回来对答案
-python -m pianoize.eval_audio2midi --midi truth.mid --audio truth.wav
+python -m midi_pianoswitcher.eval_audio2midi --midi truth.mid --audio truth.wav
 ```
 
 > **如果你的目标是"纯钢琴版"，最优解永远是找到原曲的 MIDI，而不是从音频转。**
@@ -263,7 +274,7 @@ python -m pianoize.eval_audio2midi --midi truth.mid --audio truth.wav
 - **音频转谱准确度有限**：见上表，别期待能直接用。
 - **钢琴谱是"可读"而非"可演奏"**：无法还原真实指法、踏板、声部走向，复杂曲目请当草稿。
 - **长曲资源占用**：6 分钟曲子渲染约 20 秒、中间 WAV 约 127 MB。批量是串行的。
-- **图形界面只支持 MIDI 输入**：音频要先经 `pianoize-audio2midi` 转一遍
+- **图形界面只支持 MIDI 输入**：音频要先经 `mps-audio2midi` 转一遍
   （准确度有限）。这是刻意的 —— 与其在界面里给个不靠谱的按钮，不如说明白。
 - **OGG 只走 ffmpeg**：libsndfile 写 OGG 在本项目测试环境下会**原生崩溃**（`0xC0000409` stack buffer overflow，异常捕获不住），所以绕开它。
 - **界面是单机自用设计**：`/api/*` 没有鉴权，任何人能访问就能上传/渲染。
@@ -297,7 +308,7 @@ pytest -q
 ## 项目结构
 
 ```
-src/pianoize/
+src/midi_pianoswitcher/
   core.py            纯逻辑：诊断/改音色/修重击/写谱/校验/响度（可单独 import 测试）
   ops.py             DIY 剪辑：trim/duplicate/pitch/volume + tempo map + 预设 JSON
   runner.py          编排：argparse + 七个阶段的调度
@@ -313,7 +324,7 @@ tests/
   test_web.py        multipart 解析 + HTTP 接口端到端
 tools/
   make_stress_midi.py  生成带边界的合成测试文件（本项目原创，可安全分发）
-  launch_gui.py        从源码启动界面（绕开"仓库根目录也叫 pianoize/"的包遮蔽问题）
+  launch_gui.py        从源码启动界面（绕开"仓库根目录也叫 MIDI-PianoSwitcher/"的包遮蔽问题）
   smoke_web_api.py     GUI 接口端到端冒烟测试（需服务在跑）
   lint_frontend.py     前端静态校验：JS 语法 + DOM id 一致性 + 零外部依赖
 ```
@@ -324,9 +335,9 @@ tools/
 python tools/launch_gui.py --port 8765
 ```
 
-> 直接 `python -m pianoize.webapp` 在仓库根目录会失败，报
-> `__path__ attribute not found on 'pianoize'` —— 因为仓库根目录**本身就叫
-> `pianoize/`**，会被当成命名空间包遮蔽掉 `src/pianoize`。`launch_gui.py`
+> 直接 `python -m midi_pianoswitcher.webapp` 在仓库根目录会失败，报
+> `__path__ attribute not found on 'MIDI-PianoSwitcher'` —— 因为仓库根目录**本身就叫
+> `MIDI-PianoSwitcher/`**，会被当成命名空间包遮蔽掉 `src/midi_pianoswitcher`。`launch_gui.py`
 > 通过指定 `PYTHONPATH=src` + 工作目录设成 `src/` 绕开它。
 
 想知道界面是否接线正确、又懒得开浏览器时：

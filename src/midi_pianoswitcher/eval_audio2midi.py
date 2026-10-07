@@ -8,7 +8,7 @@
 
 用法：
 
-    python -m pianoize.eval_audio2midi --midi 真值.mid --audio 音频.wav
+    python -m midi_pianoswitcher.eval_audio2midi --midi 真值.mid --audio 音频.wav
 """
 from __future__ import annotations
 

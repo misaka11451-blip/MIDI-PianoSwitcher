@@ -1,5 +1,5 @@
 /* ============================================================================
- * pianoize · 前端逻辑（原生 ES6，无任何依赖）
+ * MIDI-PianoSwitcher · 前端逻辑（原生 ES6，无任何依赖）
  *
  * 结构：
  *   0  后端地址
@@ -35,13 +35,13 @@
    * 此时页面与 API 天然同源 —— 直接用相对路径最稳，端口随便改都不会坏。
    *
    * 只有一种例外：用户直接用 file:// 打开 index.html 调试。
-   * 那时没有同源可言，于是回退到 index.html 里 <meta name="pianoize-backend">
+   * 那时没有同源可言，于是回退到 index.html 里 <meta name="mps-backend">
    * 配置的地址（默认 127.0.0.1:8765）。注意这种模式下浏览器会做跨域检查，
    * 需要后端返回 CORS 头才通得过。
    */
   const API_BASE = (function () {
     if (location.protocol === 'http:' || location.protocol === 'https:') return '';
-    const meta = document.querySelector('meta[name="pianoize-backend"]');
+    const meta = document.querySelector('meta[name="mps-backend"]');
     const host = (meta && meta.content) ? meta.content.trim() : '127.0.0.1:8765';
     return location.protocol.replace(/^file:$/, 'http:') + '//' + host;
   })();
@@ -1038,7 +1038,7 @@
 
   /**
    * 生成操作的中文描述。
-   * 措辞与后端 pianoize.ops.Operation.describe() 保持一致，
+   * 措辞与后端 midi_pianoswitcher.ops.Operation.describe() 保持一致，
    * 这样列表里看到的和「执行报告」里看到的不会出现两种说法。
    */
   /** 插入位置的人话描述（与后端 ops.Operation.insert_desc 对齐） */
@@ -1093,7 +1093,7 @@
 
   /**
    * 读取新建操作表单并做本地校验。
-   * 校验口径与后端 pianoize.ops.Operation.__post_init__ 对齐：
+   * 校验口径与后端 midi_pianoswitcher.ops.Operation.__post_init__ 对齐：
    * 区间必须非零长度、repeat ≥ 1 等，尽量在本地就拦住，省一次往返。
    * @throws {Error} 校验不通过时抛出中文原因
    */
@@ -1479,13 +1479,13 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'pianoize-preset.json';
+      a.download = 'MIDI-PianoSwitcher-preset.json';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       // 立刻 revoke 在部分浏览器上会把下载掐断，所以延后释放
       setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
-      showToast('预设已导出：pianoize-preset.json（' + payload.operations.length + ' 条操作）');
+      showToast('预设已导出：MIDI-PianoSwitcher-preset.json（' + payload.operations.length + ' 条操作）');
     } catch (err) {
       showError('预设导出失败：' + (err && err.message ? err.message : '未知错误'));
     }

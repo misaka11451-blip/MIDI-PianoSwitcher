@@ -15,14 +15,14 @@
 
 ```bash
 python tools/make_stress_midi.py .
-pianoize --src stress.mid --outdir out --pdf --audio-format wav,flac,mp3
+mps --src stress.mid --outdir out --pdf --audio-format wav,flac,mp3
 ```
 
 想验证音频转谱的准确度，再用这份 MIDI 渲染出的音频对答案：
 
 ```bash
 # 先用 MuseScore 把 stress.mid 渲染成 wav，然后：
-python -m pianoize.eval_audio2midi --midi stress.mid --audio stress.wav
+python -m midi_pianoswitcher.eval_audio2midi --midi stress.mid --audio stress.wav
 ```
 
 ## 一点建议

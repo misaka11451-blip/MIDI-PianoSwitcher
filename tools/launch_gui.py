@@ -1,15 +1,15 @@
 """从**源码目录**启动图形界面（不需要先 pip install）。
 
-为什么需要这个脚本：直接在仓库根目录跑 ``python -m pianoize.webapp`` 会失败，
-报 ``__path__ attribute not found on 'pianoize'``。原因是仓库根目录**本身就叫
-``pianoize/``**，它会被当成一个没有 ``__init__.py`` 的命名空间包，**遮蔽掉
-``src/pianoize`` 里真正的包**。
+为什么需要这个脚本：直接在仓库根目录跑 ``python -m midi_pianoswitcher.webapp`` 会失败，
+报 ``__path__ attribute not found on 'MIDI-PianoSwitcher'``。原因是仓库根目录**本身就叫
+``MIDI-PianoSwitcher/``**，它会被当成一个没有 ``__init__.py`` 的命名空间包，**遮蔽掉
+``src/midi_pianoswitcher`` 里真正的包**。
 
 这个脚本做两件事就绕开了：
   1. 把 ``src/`` 放进 PYTHONPATH
   2. 把工作目录设成 ``src/``（而不是仓库根目录）
 
-正常 ``pip install -e .`` 之后不需要它，直接用 ``pianoize-gui`` 命令即可。
+正常 ``pip install -e .`` 之后不需要它，直接用 ``midi-pianoswitcher-gui`` 命令即可。
 
 用法：
 
@@ -38,7 +38,7 @@ SRC = ROOT / "src"
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="从源码启动 pianoize 图形界面")
+    ap = argparse.ArgumentParser(description="从源码启动 MIDI-PianoSwitcher 图形界面")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--no-browser", action="store_true")
@@ -46,15 +46,15 @@ def main(argv: list[str] | None = None) -> int:
                     help="工作目录（默认系统临时目录；给了就保留内容）")
     a = ap.parse_args(argv)
 
-    if not (SRC / "pianoize" / "webapp.py").exists():
-        print(f"  ✗ 找不到源码：{SRC / 'pianoize' / 'webapp.py'}")
+    if not (SRC / "MIDI-PianoSwitcher" / "webapp.py").exists():
+        print(f"  ✗ 找不到源码：{SRC / 'MIDI-PianoSwitcher' / 'webapp.py'}")
         return 1
 
     env = os.environ.copy()
     env["PYTHONPATH"] = str(SRC)
     env["PYTHONIOENCODING"] = "utf-8"
 
-    cmd = [sys.executable, "-m", "pianoize.webapp",
+    cmd = [sys.executable, "-m", "midi_pianoswitcher.webapp",
            "--host", a.host, "--port", str(a.port)]
     if a.no_browser:
         cmd.append("--no-browser")

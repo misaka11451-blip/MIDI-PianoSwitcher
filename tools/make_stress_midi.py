@@ -1,6 +1,6 @@
 #!/usr/bin/env python -u
 # -*- coding: utf-8 -*-
-"""构造带边界的合成测试 MIDI，专门压 pianoize 的各个分支。
+"""构造带边界的合成测试 MIDI，专门压 MIDI-PianoSwitcher 的各个分支。
 
 这份文件是**本项目原创**，所以可以安全地随仓库分发（真实歌曲的 MIDI 不行）。
 

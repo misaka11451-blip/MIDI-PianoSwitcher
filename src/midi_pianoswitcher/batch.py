@@ -2,9 +2,9 @@
 
 用法：
 
-    pianoize-batch a.mid b.mid --outdir out
-    pianoize-batch --indir "D:/midi" --outdir out --audio-format flac
-    pianoize-batch a.mid --outdir out --pdf
+    midi-pianoswitcher-batch a.mid b.mid --outdir out
+    midi-pianoswitcher-batch --indir "D:/midi" --outdir out --audio-format flac
+    midi-pianoswitcher-batch a.mid --outdir out --pdf
 
 设计上故意**不并行**：单次渲染会吃掉几百 MB 内存和临时磁盘，
 串行跑比并行稳，也更不容易把机器拖垮。
@@ -54,11 +54,11 @@ def collect(paths: list[str], indir: str | None, recursive: bool) -> list[Path]:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
-        description="pianoize 批量模式：多个 MIDI 挨个转成纯钢琴版")
+        description="MIDI-PianoSwitcher 批量模式：多个 MIDI 挨个转成纯钢琴版")
     ap.add_argument("paths", nargs="*", help="MIDI 文件或目录（可多个）")
     ap.add_argument("--indir", default=None, help="从目录里找 MIDI")
     ap.add_argument("--recursive", action="store_true", help="--indir 递归子目录")
-    ap.add_argument("--outdir", default="pianoize_out")
+    ap.add_argument("--outdir", default="mps_out")
     ap.add_argument("--pdf", action="store_true")
     ap.add_argument("--audio-format", default="wav,mp3")
     ap.add_argument("--bitdepth", type=int, default=16, choices=(16, 24))

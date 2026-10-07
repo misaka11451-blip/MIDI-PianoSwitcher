@@ -1,4 +1,4 @@
-"""pianoize 的命令行入口（console_scripts: `pianoize`）。"""
+"""MIDI-PianoSwitcher 的命令行入口（console_scripts: `mps`）。"""
 from __future__ import annotations
 
 import sys

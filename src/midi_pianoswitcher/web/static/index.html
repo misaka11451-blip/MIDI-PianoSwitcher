@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>pianoize · MIDI 转纯钢琴版</title>
+<title>MIDI-PianoSwitcher · MIDI 转纯钢琴版</title>
 
 <!--
   ============================================================================
@@ -16,7 +16,7 @@
 
 <!-- 仅当本页面被 file:// 直接打开（脱离后端）时，才用这个回退地址探测后端。
      正常使用方式是让后端把本页面发出来，那时这段配置不会被使用。 -->
-<meta name="pianoize-backend" content="127.0.0.1:8765" />
+<meta name="mps-backend" content="127.0.0.1:8765" />
 
 <!-- data: 空图标，避免浏览器自动去请求不存在的 favicon（不引入任何外部资源） -->
 <link rel="icon" href="data:," />
@@ -32,7 +32,7 @@
     <div class="brand">
       <span class="brand-mark" aria-hidden="true"></span>
       <span class="brand-text">
-        <span class="brand-name">pianoize</span>
+        <span class="brand-name">MIDI-PianoSwitcher</span>
         <span class="brand-sub">MIDI → 纯钢琴版 · 可视化剪辑</span>
       </span>
     </div>
@@ -320,7 +320,7 @@
                    class="sr-only" tabindex="-1" />
           </div>
           <p class="card-foot">
-            导出文件名固定为 <span class="mono">pianoize-preset.json</span>；
+            导出文件名固定为 <span class="mono">MIDI-PianoSwitcher-preset.json</span>；
             导入会先校验结构，再覆盖当前操作列表。
           </p>
         </div>
@@ -459,7 +459,7 @@
       </section>
 
       <p class="app-foot">
-        pianoize · 本地离线运行 · 无任何外部依赖
+        MIDI-PianoSwitcher · 本地离线运行 · 无任何外部依赖
       </p>
 
     </div>

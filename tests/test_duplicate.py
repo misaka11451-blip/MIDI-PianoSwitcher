@@ -14,7 +14,7 @@ import pretty_midi
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from pianoize import ops  # noqa: E402
+from midi_pianoswitcher import ops  # noqa: E402
 
 
 def mk_seq(n: int = 20, step: float = 0.5, tempo: float = 120.0,

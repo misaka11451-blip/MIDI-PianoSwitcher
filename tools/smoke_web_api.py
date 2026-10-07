@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""端到端测试 pianoize GUI 的 HTTP 接口。
+"""端到端测试 MIDI-PianoSwitcher GUI 的 HTTP 接口。
 
 用标准库 urllib 手写 multipart（顺便验证服务端解析器能处理真实浏览器风格的请求）。
 """
@@ -44,7 +44,7 @@ def post_json(path: str, payload: dict, timeout: int = 900):
 
 
 def post_file(path: str, field: str, filename: str, content: bytes, timeout: int = 900):
-    boundary = "----pianoizeTest" + uuid.uuid4().hex
+    boundary = "----MIDI-PianoSwitcherTest" + uuid.uuid4().hex
     body = b""
     body += f"--{boundary}\r\n".encode()
     body += (f'Content-Disposition: form-data; name="{field}"; '
@@ -73,7 +73,7 @@ def get_raw(path: str, timeout: int = 300):
 
 def main() -> int:
     print("=" * 72)
-    print("  pianoize GUI 接口端到端测试")
+    print("  MIDI-PianoSwitcher GUI 接口端到端测试")
     print("=" * 72)
     print(f"  服务: {BASE}")
     print(f"  素材: {MIDI}  ({MIDI.stat().st_size / 1024:.1f} KB)")

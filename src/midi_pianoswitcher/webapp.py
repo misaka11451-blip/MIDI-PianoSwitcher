@@ -1,10 +1,10 @@
-"""webapp —— pianoize 的图形界面（本地 Web UI）。
+"""webapp —— MIDI-PianoSwitcher 的图形界面（本地 Web UI）。
 
 ## 为什么选 Web UI 而不是 Qt/Tk
 
 * **零新增重依赖**。界面用 Python 内置的 ``http.server`` 发出，渲染交给浏览器。
   对比：PySide6/PyQt 是 100+ MB 的依赖，塞进一个"轻量工具"并不合适。
-* **真正的桌面应用体验**。``pianoize-gui`` 一条命令启动、自动开浏览器，
+* **真正的桌面应用体验**。``midi-pianoswitcher-gui`` 一条命令启动、自动开浏览器，
   关掉终端就结束，不常驻后台、不联网、不上传任何文件到外部。
 * **浏览器是现成的渲染引擎**：波形、拖拽选区、音频播放（HTML5 audio）
   都不用自己写。
@@ -225,7 +225,7 @@ def describe_tracks(pm: pretty_midi.PrettyMIDI) -> dict:
 # 处理请求
 # --------------------------------------------------------------------------- #
 class Handler(BaseHTTPRequestHandler):
-    server_version = "pianoize-gui"
+    server_version = "midi-pianoswitcher-gui"
     projects_root: Path
 
     # ---- 基础设施 ----
@@ -412,7 +412,7 @@ class Handler(BaseHTTPRequestHandler):
         if suffix not in MIDI_EXT:
             return self._error(
                 400, f"只支持 MIDI 文件（{', '.join(MIDI_EXT)}）。"
-                     f"音频转 MIDI 请先用命令行 pianoize.audio2midi，"
+                     f"音频转 MIDI 请先用命令行 midi_pianoswitcher.audio2midi，"
                      f"准确度有限，见 README。")
 
         pid = secrets.token_hex(16)
@@ -652,7 +652,7 @@ def run(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True,
         print("     这个包安装不完整（web/static 缺失）。")
         return 1
 
-    root = Path(temp_dir) if temp_dir else Path(tempfile.mkdtemp(prefix="pianoize_"))
+    root = Path(temp_dir) if temp_dir else Path(tempfile.mkdtemp(prefix="MIDI-PianoSwitcher_"))
     root.mkdir(parents=True, exist_ok=True)
 
     Handler.projects_root = root
@@ -662,7 +662,7 @@ def run(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True,
     url = f"http://{host}:{port}/"
     print()
     print("=" * 70)
-    print("  pianoize GUI —— MIDI → 纯钢琴版 · 可视化剪辑")
+    print("  MIDI-PianoSwitcher GUI —— MIDI → 纯钢琴版 · 可视化剪辑")
     print("=" * 70)
     print(f"  界面地址： {url}")
     print(f"  工作目录： {root}")
@@ -696,7 +696,7 @@ def run(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True,
 def main(argv: list[str] | None = None) -> int:
     import argparse
     ap = argparse.ArgumentParser(
-        description="pianoize 图形界面（本地 Web UI，只监听本机）")
+        description="MIDI-PianoSwitcher 图形界面（本地 Web UI，只监听本机）")
     ap.add_argument("--host", default="127.0.0.1",
                     help="监听地址，默认只本机。填 0.0.0.0 可让同局域网设备访问")
     ap.add_argument("--port", type=int, default=8765)

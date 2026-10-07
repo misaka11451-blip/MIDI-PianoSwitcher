@@ -25,7 +25,7 @@
 
 用法：
 
-    from pianoize import ops
+    from midi_pianoswitcher import ops
     preset = ops.Preset.from_json(path)
     new_pm = ops.apply(pm, preset.operations)
     preset.to_json(path)

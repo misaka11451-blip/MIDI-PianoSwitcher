@@ -27,7 +27,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from pianoize import webapp  # noqa: E402
+from midi_pianoswitcher import webapp  # noqa: E402
 
 
 # --------------------------------------------------------------------------- #
@@ -107,7 +107,7 @@ def midi_bytes() -> bytes:
 # 1. multipart 解析
 # --------------------------------------------------------------------------- #
 def _mp(field: str, filename: bytes, payload: bytes,
-        boundary: str = "----pianoizeTest") -> tuple[bytes, str]:
+        boundary: str = "----MIDI-PianoSwitcherTest") -> tuple[bytes, str]:
     body = bytearray()
     body += f"--{boundary}\r\n".encode()
     body += b'Content-Disposition: form-data; name="' + field.encode() + b'"; filename="' + filename + b'"\r\n'
@@ -366,7 +366,7 @@ def test_unknown_route_404(server):
 
 def test_preview_applies_operations(server, midi_bytes):
     """试听要真实施加剪辑：时长按预期改变，并给出执行报告。"""
-    from pianoize.core import find_musescore
+    from midi_pianoswitcher.core import find_musescore
     if not find_musescore():
         pytest.skip("没有 MuseScore，渲染类用例跳过")
 
@@ -398,7 +398,7 @@ def test_preview_applies_operations(server, midi_bytes):
 
 
 def test_render_produces_expected_files(server, midi_bytes, tmp_path):
-    from pianoize.core import find_musescore
+    from midi_pianoswitcher.core import find_musescore
     if not find_musescore():
         pytest.skip("没有 MuseScore，渲染类用例跳过")
 

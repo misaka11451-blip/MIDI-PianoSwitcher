@@ -1,4 +1,4 @@
-"""pianoize 的核心测试。
+"""MIDI-PianoSwitcher 的核心测试。
 
 这些测试**不依赖 MuseScore**：音频渲染是可选环节，这里只测纯逻辑，
 所以 CI 上不用装任何外部程序也能跑。
@@ -20,7 +20,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from pianoize import core  # noqa: E402
+from midi_pianoswitcher import core  # noqa: E402
 
 TPB = 480
 

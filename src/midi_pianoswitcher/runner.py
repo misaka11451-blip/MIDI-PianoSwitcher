@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description="MIDI → 纯钢琴版（音频 / MIDI / 钢琴谱），自带结构校验与自动修复")
     ap.add_argument("--src", required=True, help="输入 .mid / .midi")
-    ap.add_argument("--outdir", default="pianoize_out")
+    ap.add_argument("--outdir", default="mps_out")
     ap.add_argument("--name", default=None, help="输出文件名前缀（默认取输入文件名）")
     ap.add_argument("--piano", default="piano", choices=sorted(GM_PIANO),
                     help="钢琴音色，默认 acoustic grand piano")
@@ -93,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
     stem = a.name or src.stem
     program = GM_PIANO[a.piano]
 
-    log.head(f"pianoize —— {src.name} → 纯钢琴版")
+    log.head(f"MIDI-PianoSwitcher —— {src.name} → 纯钢琴版")
 
     # ---------- 读 ----------
     pm = pretty_midi.PrettyMIDI(str(src))

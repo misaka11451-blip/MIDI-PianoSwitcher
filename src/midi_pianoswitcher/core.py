@@ -1,7 +1,7 @@
 #!/usr/bin/env python -u
 # -*- coding: utf-8 -*-
 """
-core —— pianoize 的纯逻辑层（诊断 / 改音色 / 修重击 / 写谱 / 校验 / 渲染 / 响度）。
+core —— MIDI-PianoSwitcher 的纯逻辑层（诊断 / 改音色 / 修重击 / 写谱 / 校验 / 渲染 / 响度）。
 
 这一层不碰 argparse、不碰 sys.exit，所有函数都可以单独 import 做单元测试；
 命令行编排在 runner.py 里。

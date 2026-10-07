@@ -1,4 +1,4 @@
-"""让 `python -m pianoize` 等价于 `pianoize` 命令。"""
+"""让 `python -m MIDI-PianoSwitcher` 等价于 `mps` 命令。"""
 from __future__ import annotations
 
 import sys

@@ -3,13 +3,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pianoize"
+name = "midi-pianoswitcher"
 version = "0.2.0"
 description = "把任意 MIDI 转成纯钢琴版：音频 + MIDI + 可打印钢琴谱，自带乐谱结构校验"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
-authors = [{ name = "pianoize contributors" }]
+authors = [{ name = "MIDI-PianoSwitcher contributors" }]
 keywords = ["midi", "piano", "musicxml", "musescore", "transcription", "audio", "music"]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -39,20 +39,26 @@ dependencies = [
 dev = ["pytest>=7", "pytest-xdist"]
 
 [project.urls]
-Homepage = "https://github.com/misaka11451-blip/pianoize"
-Issues = "https://github.com/misaka11451-blip/pianoize/issues"
+Homepage = "https://github.com/misaka11451-blip/MIDI-PianoSwitcher"
+Issues = "https://github.com/misaka11451-blip/MIDI-PianoSwitcher/issues"
 
 [project.scripts]
-pianoize = "pianoize.runner:main"
-pianoize-batch = "pianoize.batch:main"
-pianoize-gui = "pianoize.webapp:main"
-pianoize-audio2midi = "pianoize.audio2midi:main"
+# 完整命令（与项目名一致）
+midi-pianoswitcher = "midi_pianoswitcher.runner:main"
+midi-pianoswitcher-gui = "midi_pianoswitcher.webapp:main"
+midi-pianoswitcher-batch = "midi_pianoswitcher.batch:main"
+midi-pianoswitcher-audio2midi = "midi_pianoswitcher.audio2midi:main"
+# 简写别名（打起来方便，功能完全等价）
+mps = "midi_pianoswitcher.runner:main"
+mps-gui = "midi_pianoswitcher.webapp:main"
+mps-batch = "midi_pianoswitcher.batch:main"
+mps-audio2midi = "midi_pianoswitcher.audio2midi:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/pianoize"]
+packages = ["src/midi_pianoswitcher"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"src/pianoize/web/static" = "pianoize/web/static"
+"src/midi_pianoswitcher/web/static" = "midi_pianoswitcher/web/static"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
