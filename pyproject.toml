@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "midi-pianoswitcher"
-version = "0.2.0"
+version = "0.2.1"
 description = "把任意 MIDI 转成纯钢琴版：音频 + MIDI + 可打印钢琴谱，自带乐谱结构校验"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -55,10 +55,14 @@ mps-batch = "midi_pianoswitcher.batch:main"
 mps-audio2midi = "midi_pianoswitcher.audio2midi:main"
 
 [tool.hatch.build.targets.wheel]
+# 只声明这一条就够了：packages 会把 src/midi_pianoswitcher 下的**所有**文件
+# （含 web/static 里的 html/css/js）都打进 wheel。
+#
+# 千万别再写 force-include 把 web/static 再塞一次 —— 同一个文件会被加入两次，
+# 构建 wheel 时报 "A second file is being added to the wheel archive at the
+# same path"。这个坑可编辑安装（pip install -e .）不会暴露，只有普通用户
+# 的 pip install . 才会炸。已实测。
 packages = ["src/midi_pianoswitcher"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"src/midi_pianoswitcher/web/static" = "midi_pianoswitcher/web/static"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
