@@ -294,14 +294,26 @@ tests/
   test_web.py        multipart 解析 + HTTP 接口端到端
 tools/
   make_stress_midi.py  生成带边界的合成测试文件（本项目原创，可安全分发）
+  launch_gui.py        从源码启动界面（绕开"仓库根目录也叫 pianoize/"的包遮蔽问题）
   smoke_web_api.py     GUI 接口端到端冒烟测试（需服务在跑）
   lint_frontend.py     前端静态校验：JS 语法 + DOM id 一致性 + 零外部依赖
 ```
 
+**没装就走一遍源码版**（不想 `pip install -e .` 时）：
+
+```bash
+python tools/launch_gui.py --port 8765
+```
+
+> 直接 `python -m pianoize.webapp` 在仓库根目录会失败，报
+> `__path__ attribute not found on 'pianoize'` —— 因为仓库根目录**本身就叫
+> `pianoize/`**，会被当成命名空间包遮蔽掉 `src/pianoize`。`launch_gui.py`
+> 通过指定 `PYTHONPATH=src` + 工作目录设成 `src/` 绕开它。
+
 想知道界面是否接线正确、又懒得开浏览器时：
 
 ```bash
-pianoize-gui --no-browser --port 8765     # 另开一个终端窗口
+python tools/launch_gui.py --no-browser --port 8765   # 另开一个终端窗口
 python tools/smoke_web_api.py http://127.0.0.1:8765 song.mid ./out
 python tools/lint_frontend.py
 ```
