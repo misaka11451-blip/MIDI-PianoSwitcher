@@ -1,0 +1,25 @@
+# 统一换行，避免 Windows 上克隆下来整个仓库显示为"已修改"
+* text=auto eol=lf
+
+# 明确按文本处理的类型
+*.py    text eol=lf
+*.md    text eol=lf
+*.toml  text eol=lf
+*.txt   text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.json  text eol=lf
+
+# 二进制：绝不改动
+*.mid   binary
+*.midi  binary
+*.wav   binary
+*.flac  binary
+*.mp3   binary
+*.ogg   binary
+*.png   binary
+*.jpg   binary
+*.pdf   binary
+
+# 让 GitHub 语言统计正确（默认会把 .py 之外的东西算进来）
+*.musicxml linguist-generated

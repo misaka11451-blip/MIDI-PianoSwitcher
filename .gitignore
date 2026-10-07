@@ -1,0 +1,46 @@
+# --- 虚拟环境 / 构建产物 ---
+.venv/
+.venv39/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# --- 默认输出目录（跑工具就会生成）---
+pianoize_out/
+out/
+output/
+_pianoize_test/
+
+# --- 音频/乐谱产物：体积大，且多半是版权作品的衍生品，绝不入库 ---
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.m4a
+*.musicxml
+*.mxl
+*.pdf
+!docs/**/*.pdf
+
+# --- 私有素材 ---
+_secrets/
+ref_audio/
+对比测试/
+网易云导入/
+_docx_extract/
+*.psd
+*.rar
+*.7z
+
+# --- 编辑器/系统 ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

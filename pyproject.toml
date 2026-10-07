@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pianoize"
+version = "0.1.0"
+description = "把任意 MIDI 转成纯钢琴版：音频 + MIDI + 可打印钢琴谱，自带乐谱结构校验"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "pianoize contributors" }]
+keywords = ["midi", "piano", "musicxml", "musescore", "transcription", "audio", "music"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Multimedia :: Sound/Audio :: Conversion",
+  "Topic :: Multimedia :: Sound/Audio :: MIDI",
+]
+
+dependencies = [
+  "mido>=1.2",
+  "pretty_midi>=0.2.10",
+  "numpy>=1.24",
+  "soundfile>=0.12",
+  "scipy>=1.10",
+  "pyloudnorm>=0.1.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "pytest-xdist"]
+
+[project.urls]
+Homepage = "https://github.com/yourname/pianoize"
+Issues = "https://github.com/yourname/pianoize/issues"
+
+[project.scripts]
+pianoize = "pianoize.runner:main"
+pianoize-batch = "pianoize.batch:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pianoize"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
