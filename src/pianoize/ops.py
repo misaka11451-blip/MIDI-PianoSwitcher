@@ -404,6 +404,109 @@ def total_shift_seconds(operations: Iterable[Operation]) -> float:
     return delta
 
 
+# --------------------------------------------------------------------------- #
+# 原始时间轴 ↔ 处理后时间轴 的映射
+# --------------------------------------------------------------------------- #
+def timeline_map(operations: Iterable[Operation], duration: float,
+                 max_segments: int = 4000) -> list[dict]:
+    """算出「处理后时间轴」与「原始时间轴」的对应关系。
+
+    为什么需要：界面上画波形用的是**原始** MIDI 的峰值，而试听音频是
+    **施加操作之后**的结果，两者长度可能不同（trim 变短、duplicate 变长）。
+    没有这个映射，播放头只能按比例硬凑，一剪辑就会偏。
+
+    返回 ``[{"out_start","out_end","src_start","src_end"}, ...]``，
+    按 out_start 升序，段内线性映射（所有操作都只做平移）。
+
+    ## 为什么必须维护"片段列表"而不是"映射函数"
+
+    试过两种更"聪明"的做法，都会错：
+
+    1. 维护「源区间 → 当前落点」的片段表：duplicate 会让同一段源素材出现
+       在输出两处，逐段搬砖必然漏掉副本。
+    2. 维护 (输出位置, 源位置) 标记点再配对：duplicate 之后的标记点源位置
+       会出现**相同值**，配对出来的段长度算成 0。
+
+    根因是：**复制会让输出里的源区间互相重叠**（先复制 [30,40)，再复制
+    [35,45)，输出里这两段的源区间就重叠了）。这种情况下"输出时间 → 源时间"
+    根本不是函数，任何单值映射都表达不了。
+
+    所以这里直接维护一串**片段**：每段记着"原始时间轴上的 [src0,src1)
+    目前落在输出时间轴的 out0"。每个操作只改这张表：
+
+      * trim [a,b)：落在区间内的片段删掉；跨界的切成两半；b 之后的整体前移
+      * duplicate [a,b)：b 之后的整体后移 L*repeat，再在腾出的空位追加副本
+
+    只考虑 trim / duplicate —— pitch 和 volume 不改变时间轴。
+    """
+    ops = [o for o in operations if o.kind in ("trim", "duplicate") and o.end > o.start]
+    if not ops:
+        return []
+
+    # pieces: [src0, src1, out0]；长度 = src1 - src0
+    pieces: list[list[float]] = [[0.0, float(duration), 0.0]]
+
+    def split_at(a: float, b: float) -> None:
+        """把片段表在所有 a、b 处切开，保证边界对齐到片段边界。"""
+        nonlocal pieces
+        for cut in (a, b):
+            if cut <= EPS:
+                continue
+            out: list[list[float]] = []
+            for s0, s1, o0 in pieces:
+                if s0 + EPS < cut < s1 - EPS:
+                    out.append([s0, cut, o0])
+                    out.append([cut, s1, o0 + (cut - s0)])
+                else:
+                    out.append([s0, s1, o0])
+            pieces = out
+
+    for op in ops:
+        a, b = float(op.start), float(op.end)
+        length = b - a
+        split_at(a, b)
+        if op.kind == "trim":
+            # 删掉落在 [a,b) 内的片段，并让 b 之后的整体前移 length
+            kept: list[list[float]] = []
+            for s0, s1, o0 in pieces:
+                if s0 >= a - EPS and s1 <= b + EPS:
+                    continue                      # 整段落在删除区内
+                shift = -length if s0 >= b - EPS else 0.0
+                kept.append([s0, s1, o0 + shift])
+            pieces = kept
+        else:  # duplicate
+            shift = length * op.repeat
+            # 1) b 之后的内容整体后移，腾出 repeat 份的空间
+            for pc in pieces:
+                if pc[0] >= b - EPS:
+                    pc[2] += shift
+            # 2) 在腾出的空位里追加副本：第 r 份占输出 [b+(r-1)L, b+rL)
+            srcs = [[s0, s1, o0] for s0, s1, o0 in pieces
+                    if s0 >= a - EPS and s1 <= b + EPS]
+            for r in range(1, op.repeat + 1):
+                base = b + (r - 1) * length
+                for s0, s1, _o0 in srcs:
+                    pieces.append([s0, s1, base + (s0 - a)])
+
+        if len(pieces) > max_segments:
+            return []
+
+    out = []
+    for s0, s1, o0 in pieces:
+        if s1 - s0 <= EPS or o0 < -EPS:
+            continue
+        out.append({
+            "out_start": round(max(0.0, o0), 4),
+            "out_end": round(max(0.0, o0) + (s1 - s0), 4),
+            "src_start": round(s0, 4),
+            "src_end": round(s1, 4),
+        })
+    if len(out) > max_segments:
+        return []
+    out.sort(key=lambda d: (d["out_start"], d["src_start"]))
+    return out
+
+
 def validate_against_duration(operations: Iterable[Operation], duration: float,
                               ) -> list[str]:
     """给出"人能看懂"的警告（不抛异常，UI 需要原样展示）。

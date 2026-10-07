@@ -488,6 +488,9 @@ class Handler(BaseHTTPRequestHandler):
         pm = pretty_midi.PrettyMIDI(str(src))
         duration_in = pm.get_end_time()
         warnings = ops_mod.validate_against_duration(operations, duration_in)
+        # 时间轴映射：波形用的是原始时间轴，试听音频是处理后的时间轴。
+        # 把这个对应关系交给前端，播放头才能精确对齐（否则只能按比例硬凑）。
+        segments = ops_mod.timeline_map(operations, duration_in)
 
         with _lock_for(pid):
             edited = d / "preview_edited.mid"
@@ -510,6 +513,8 @@ class Handler(BaseHTTPRequestHandler):
             "ok": True,
             "audio_url": f"/api/files/{pid}/preview/{mp3.name}",
             "duration": round(duration_out, 3),
+            "duration_in": round(duration_in, 3),
+            "segments": segments,
             "report": report,
             "warnings": warnings,
             "size": mp3.stat().st_size,

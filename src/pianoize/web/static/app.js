@@ -114,6 +114,7 @@
     selection: null,    // { start, end } 原始时间轴上的选区（秒）
     playhead: null,     // 播放头位置，原始时间轴（秒）
     audioDuration: 0,   // 当前试听音频的时长（处理后时间轴）
+    segments: null,     // 原始↔处理后 的时间轴映射（后端返回，可能为 null）
     busy: false,
     scoreUrl: null,
   };
@@ -469,6 +470,7 @@
     state.selection = null;
     state.playhead = null;
     state.audioDuration = 0;
+    state.segments = null;
 
     // 停掉并清空播放器，避免拿着上一首的音频继续放
     try {
@@ -792,9 +794,9 @@
   /**
    * 移动播放头，并（如果已有试听音频）把音频也跳到对应位置。
    *
-   * 注意时间轴的差异：peaks 描述的是**原始**音频，而试听音频是施加操作之后的
-   * 结果，长度可能因为 trim / duplicate 变了。后端没有给出两个时间轴的对应关系，
-   * 所以这里按**比例**映射（相对位置对齐），而不是按绝对秒数。
+   * 注意时间轴的差异：波形画的是**原始** MIDI，而试听音频是施加剪辑之后的
+   * 结果，长度可能因为 trim / duplicate 变了。所以这里走 mapSrcToOut()，
+   * 用后端返回的 segments 做精确换算；后端没给 segments 时才退回比例映射。
    */
   function seekToTime(t) {
     if (!(state.duration > 0)) return;
@@ -803,12 +805,74 @@
     drawWave();
   }
 
+  /* ------------------------------------------------------------------ *
+   * 时间轴映射：原始 ↔ 处理后
+   *
+   * 波形画的是**原始** MIDI 的峰值，而试听音频是**施加剪辑之后**的结果 ——
+   * 长度可能不同（trim 变短、duplicate 变长）。所以播放头和音频时间之间
+   * 不能按比例硬凑，必须按后端给的 segments 精确换算。
+   *
+   * segments 形如 [{out_start, out_end, src_start, src_end}, ...]：
+   * 处理后的 [out_start,out_end) 对应原始的 [src_start,src_end)，段内线性。
+   * 后端没给（没剪辑、或操作太碎）时退回比例映射，保证不会比原来更差。
+   * ------------------------------------------------------------------ */
+  function mapSrcToOut(srcSec) {
+    const segs = state.segments;
+    if (!Array.isArray(segs) || segs.length === 0) {
+      return state.duration > 0
+        ? (srcSec / state.duration) * state.audioDuration
+        : srcSec;
+    }
+    for (let i = 0; i < segs.length; i++) {
+      const s = segs[i];
+      if (srcSec >= s.src_start && srcSec <= s.src_end) {
+        const span = s.src_end - s.src_start;
+        const t = span > 0 ? (srcSec - s.src_start) / span : 0;
+        return s.out_start + t * (s.out_end - s.out_start);
+      }
+    }
+    // 落在被删掉的区间里：贴到最近的段边界，避免播放头乱跳
+    let best = segs[0];
+    let bestD = Infinity;
+    for (let i = 0; i < segs.length; i++) {
+      const s = segs[i];
+      const d = Math.min(Math.abs(srcSec - s.src_start), Math.abs(srcSec - s.src_end));
+      if (d < bestD) { bestD = d; best = s; }
+    }
+    return srcSec < best.src_start ? best.out_start : best.out_end;
+  }
+
+  function mapOutToSrc(outSec) {
+    const segs = state.segments;
+    if (!Array.isArray(segs) || segs.length === 0) {
+      return state.audioDuration > 0
+        ? (outSec / state.audioDuration) * state.duration
+        : outSec;
+    }
+    for (let i = 0; i < segs.length; i++) {
+      const s = segs[i];
+      if (outSec >= s.out_start && outSec <= s.out_end) {
+        const span = s.out_end - s.out_start;
+        const t = span > 0 ? (outSec - s.out_start) / span : 0;
+        return s.src_start + t * (s.src_end - s.src_start);
+      }
+    }
+    let best = segs[0];
+    let bestD = Infinity;
+    for (let i = 0; i < segs.length; i++) {
+      const s = segs[i];
+      const d = Math.min(Math.abs(outSec - s.out_start), Math.abs(outSec - s.out_end));
+      if (d < bestD) { bestD = d; best = s; }
+    }
+    return outSec < best.out_start ? best.src_start : best.src_end;
+  }
+
   function syncAudioToPlayhead() {
     const a = els.player;
     if (!a.src) return;
     if (!isFinite(a.duration) || a.duration <= 0) return;
     if (!(state.duration > 0) || state.playhead === null) return;
-    const target = (state.playhead / state.duration) * a.duration;
+    const target = mapSrcToOut(state.playhead);
     if (!isFinite(target)) return;
     wave.programmaticSeekAt = Date.now();
     try { a.currentTime = clamp(target, 0, Math.max(0, a.duration - 0.02)); } catch (_) {}
@@ -818,7 +882,7 @@
   function tickPlayhead() {
     const a = els.player;
     if (state.duration > 0 && a.src && isFinite(a.duration) && a.duration > 0) {
-      state.playhead = clamp((a.currentTime / a.duration) * state.duration, 0, state.duration);
+      state.playhead = clamp(mapOutToSrc(a.currentTime), 0, state.duration);
       drawWave();
     }
     if (!a.paused && !a.ended) {
@@ -1458,13 +1522,14 @@
       if (data.audio_url) {
         els.player.src = apiUrl(data.audio_url);
         state.audioDuration = Number(data.duration) || 0;
+      state.segments = Array.isArray(data.segments) ? data.segments : null;
         state.playhead = 0;
         try { els.player.load(); } catch (_) {}
 
         const bits = ['试听音频已就绪 · 时长 ' + formatTime(data.duration)];
         if (typeof data.peak === 'number') bits.push('峰值 ' + data.peak.toFixed(3));
         if (typeof data.lufs === 'number') bits.push(data.lufs.toFixed(1) + ' LUFS');
-        bits.push('（播放头按相对位置映射到原始波形）');
+        bits.push('（播放头已按剪辑结果精确对齐）');
         setTransportInfo(bits.join(' · '));
       } else {
         showError('后端没有返回试听音频地址。');
@@ -1545,7 +1610,7 @@
         state.playhead = 0;
         try { els.player.load(); } catch (_) {}
         setTransportInfo('已在播放器中载入渲染结果 · 时长 ' + formatTime(data.duration) +
-          '（播放头按相对位置映射到原始波形）');
+          '（播放头已按剪辑结果精确对齐）');
       }
       drawWave();
       showToast('渲染完成，共 ' + files.length + ' 个文件');
