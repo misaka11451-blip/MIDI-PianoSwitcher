@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pianoize"
-version = "0.1.0"
+version = "0.2.0"
 description = "把任意 MIDI 转成纯钢琴版：音频 + MIDI + 可打印钢琴谱，自带乐谱结构校验"
 readme = "README.md"
 requires-python = ">=3.10"
