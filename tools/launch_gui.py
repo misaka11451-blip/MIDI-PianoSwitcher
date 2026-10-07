@@ -46,8 +46,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="工作目录（默认系统临时目录；给了就保留内容）")
     a = ap.parse_args(argv)
 
-    if not (SRC / "MIDI-PianoSwitcher" / "webapp.py").exists():
-        print(f"  ✗ 找不到源码：{SRC / 'MIDI-PianoSwitcher' / 'webapp.py'}")
+    if not (SRC / "midi_pianoswitcher" / "webapp.py").exists():
+        print(f"  ✗ 找不到源码：{SRC / 'midi_pianoswitcher' / 'webapp.py'}")
         return 1
 
     env = os.environ.copy()

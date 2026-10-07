@@ -652,7 +652,7 @@ def run(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True,
         print("     这个包安装不完整（web/static 缺失）。")
         return 1
 
-    root = Path(temp_dir) if temp_dir else Path(tempfile.mkdtemp(prefix="MIDI-PianoSwitcher_"))
+    root = Path(temp_dir) if temp_dir else Path(tempfile.mkdtemp(prefix="mps_"))
     root.mkdir(parents=True, exist_ok=True)
 
     Handler.projects_root = root

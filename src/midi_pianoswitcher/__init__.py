@@ -2,7 +2,7 @@
 
 命令行用法：
 
-    MIDI-PianoSwitcher --src song.mid --outdir out --pdf
+    mps --src song.mid --outdir out --pdf
 
 当库用：纯逻辑都在 `midi_pianoswitcher.core` 里，全部是可单独调用的函数。
 

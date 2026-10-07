@@ -18,7 +18,7 @@ from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8")
 R = Path(__file__).resolve().parents[1]
-S = R / "src" / "MIDI-PianoSwitcher" / "web" / "static"
+S = R / "src" / "midi_pianoswitcher" / "web" / "static"
 NODE = shutil.which("node")
 
 html = (S / "index.html").read_text(encoding="utf-8", errors="replace")
